@@ -27,7 +27,8 @@ class LoadBfebsImage(CliTestRunner):
                                 password=self.args.password,
                                 clouduser_name=self.args.test_user,
                                 clouduser_account=self.args.test_account,
-                                log_level=self.args.log_level)
+                                log_level=self.args.log_level,
+                                region=self.args.region)
             setattr(self, '__tc', tc)
         return tc
 

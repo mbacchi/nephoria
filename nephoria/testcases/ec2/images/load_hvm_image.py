@@ -152,6 +152,7 @@ class LoadHvmImage(CliTestRunner):
                                 password=self.args.password,
                                 clouduser_name=self.args.test_user,
                                 clouduser_account=self.args.test_account,
+                                region=self.args.region,
                                 log_level=self.args.log_level)
             setattr(self, '__tc', tc)
         return tc

@@ -170,9 +170,11 @@ class NetTestsClassic(CliTestRunner):
             clc_pw = self.args.password
             test_account = self.args.test_account
             test_user = self.args.test_user
+            region = self.args.region
             log_level = getattr(self.args, 'log_level', 'DEBUG')
             tc = TestController(hostname=clc_ip, environment_file=environment_file, password=clc_pw,
-                                log_level=log_level, clouduser_name=test_user, clouduser_account=test_account)
+                                log_level=log_level, clouduser_name=test_user,
+                                clouduser_account=test_account, region=region)
             setattr(self, '_test_controller', tc)
         return tc
 

@@ -247,6 +247,7 @@ class ImportInstanceTests(CliTestRunner):
                                     clouduser_name=self.args.test_user,
                                     clouduser_account=self.args.test_account,
                                     log_level=self.args.log_level,
+                                    region=self.args.region,
                                     https=(not self.args.no_https))
             except Exception as E:
                 self.log.error("{0}\nError creating TestController obj:{1}"
