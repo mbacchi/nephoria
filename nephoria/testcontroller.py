@@ -1,7 +1,7 @@
 
 
 import logging
-
+import re
 import yaml
 from cloud_admin.systemconnection import SystemConnection
 from cloud_utils.log_utils.eulogger import Eulogger
@@ -50,7 +50,8 @@ class TestController(object):
         self.log.identifier = "TESTER:{0}".format(hostname)
         self.log = Eulogger("TESTER:{0}".format(hostname), stdout_level=log_level)
         if region is not None:
-            region = region.strip("'").strip('"')
+            if not re.search("\w", region):
+                region = ""
         self._region = region
         self._sysadmin = None
         self._cloudadmin = None
@@ -252,6 +253,7 @@ class TestController(object):
             return UserContext(eucarc=eucarc,
                                service_connection=service_connection,
                                log_level=log_level,
+                               region=region,
                                https=https)
         if aws_access_key and aws_secret_key:
             return UserContext(aws_access_key=aws_access_key,
@@ -260,12 +262,15 @@ class TestController(object):
                                aws_user_name=aws_user_name,
                                service_connection=service_connection,
                                log_level=log_level,
+                               region=region,
                                https=https)
         if credpath:
             return UserContext(credpath=credpath,
                                machine=machine,
                                log_level=log_level)
-
+        if region is not None and (self.admin.region != region):
+            raise ValueError('Mis-matched regions. Test controller admin region:"{0}" != '
+                             'requested region"{1}"'.format(region))
         info = self.admin.iam.create_account(account_name=aws_account_name,
                                                   ignore_existing=True)
         if info:
@@ -301,6 +306,7 @@ class TestController(object):
                             machine=self.sysadmin.clc_machine,
                             service_connection=self.sysadmin,
                             log_level=log_level,
+                            region=region,
                             https=https)
         user._user_info = self.admin.iam.get_user_info(user_name=user.user_name,
                                                        delegate_account=user.account_id)

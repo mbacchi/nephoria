@@ -31,6 +31,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
+import re
 from logging import INFO, DEBUG
 from boto3.session import Session
 from cloud_utils.log_utils.eulogger import Eulogger
@@ -64,6 +65,9 @@ class UserContext(AutoCreds):
                  aws_user_name=None, port=8773, credpath=None, string=None, region=None,
                  machine=None, keysdir=None, logger=None, service_connection=None,
                  eucarc=None, existing_certs=False, boto_debug=0, https=True, log_level=None):
+        if region is not None:
+            if not re.search("\w", region):
+                region = ""
         if log_level is None:
             if service_connection:
                 log_level = service_connection.log.stdout_level
