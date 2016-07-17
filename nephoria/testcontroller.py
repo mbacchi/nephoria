@@ -49,6 +49,8 @@ class TestController(object):
             hostname = component['clc-1']
         self.log.identifier = "TESTER:{0}".format(hostname)
         self.log = Eulogger("TESTER:{0}".format(hostname), stdout_level=log_level)
+        if region is not None:
+            region = region.strip("'").strip('"')
         self._region = region
         self._sysadmin = None
         self._cloudadmin = None
