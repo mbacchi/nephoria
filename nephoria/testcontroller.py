@@ -123,18 +123,11 @@ class TestController(object):
     def region(self):
         if self._region is None and self.sysadmin is not None:
             try:
-                regions = self.sysadmin.ec2_connection.get_all_regions()
-                if not regions:
-                    self.log.warning('No Regions found?')
-                else:
-                    region = regions[0]
-                    name = region.name
-                    if name:
-                        name = str(name)
-                    self.region = name
+                region_prop = self.sysadmin.get_property('system.dns.dnsdomain')
+                self.region = region_prop.value
             except Exception as RE:
-                self.log.error('{0}.\nError while fetching region info:{1}'.format(get_traceback(),
-                                                                                   RE))
+                self.log.warning('Failed to fetch dns domain to use as cloud region. Err:"{0}"'
+                                 .format(RE))
         return self._region
 
     @region.setter
