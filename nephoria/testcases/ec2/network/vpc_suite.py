@@ -5089,8 +5089,59 @@ class VpcSuite(CliTestRunner):
             test_vpc = test_vpc[0]
         return test_vpc
 
-    def test8s0_nat_gw_private_and_public_subnet_packet_test(self):
+    def test8d0_nat_gw_basic_creation_and_eni_check(self, clean=True):
         """
+        When a NAT gateway is created, it receives an elastic network interface that's
+        automatically assigned a private IP address from the IP address range of your subnet.
+        """
+        user = self.user
+        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        subnets = []
+        try:
+            self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
+            for zone in self.zones:
+                subnet = self.get_non_default_test_subnets_for_vpc(vpc=vpc, user=user, zone=zone,
+                                                                   count=1)[0]
+                subnets.append(subnet)
+                eip = user.ec2.get
+                natgw = user.ec2.create_nat_gateway(subnet)
+
+        except Exception as E:
+            self.log.error(red('{0}\nError during ENI migration tests:{1}'
+                               .format(get_traceback(), E)))
+            raise E
+        finally:
+            self.status('Beginning test cleanup. Last Status msg:"{0}"...'
+                        .format(self.last_status_msg))
+            self.restore_vm_types()
+            if clean:
+                for subnet in subnets:
+                    self.status('Attempting to delete subnet and dependency artifacts from '
+                                'this test')
+                    user.ec2.delete_subnet_and_dependency_artifacts(subnet)
+        self.status('test8d0_nat_gw_basic_creation_and_eni_check complete')
+
+    def test_8e0_nat_gw_create_gw_with_in_use_eip(self):
+        """
+        Attempt to create a NAT GW with an elastic IP which is already associated to a VM. This
+        should not be allowed.
+        """
+        raise SkipTestException('Test Not Completed at this time')
+
+    def test8e1_nat_gw_eip_association(self):
+        """
+        You can associate exactly one Elastic IP address with a NAT gateway.
+        You cannot disassociate an Elastic IP address from a NAT gateway after it's created.
+        If you need to use a different Elastic IP address for your NAT gateway,
+        you must create a new NAT gateway with the required address, update your route tables,
+        and then delete the existing NAT gateway if it's no longer required.
+        Returns:
+        """
+        raise SkipTestException('Test Not Completed at this time')
+
+    def test8s0_nat_gw_private_and_public_subnet_packet_type_test(self):
+        """
+        A NAT gateway supports the following protocols: TCP, UDP, and ICMP.
         The instances in the public subnet can receive inbound traffic directly from the
         Internet, whereas the instances in the private subnet can't. The instances in the
         public subnet can send outbound traffic directly to the Internet, whereas the instances

@@ -403,6 +403,9 @@ disable_root: false"""
             return True
 
 
+    def b3_instances(self):
+        return self.boto3.resource.instances.all()
+
 
 
     def create_keypair_and_localcert(self, key_name=None, key_dir=None, extension='.pem'):
@@ -4682,6 +4685,123 @@ disable_root: false"""
             printmethod("\n{0}\n".format(pt))
         else:
             return pt
+
+    def create_nat_gateway(self, subnet, allocation=None, desired_state='available', timeout=60):
+
+        """
+        Attempts to create a NAT Gateway and monitor it to the desired_state.
+        Args:
+            subnet: subnet id or subnet obj
+            allocation: EIP allocation id or EIP obj
+            desired_state: string representing the desired state to monitor the NAT GW for. If
+                           None is provided, the NAT GW will be returned without monitoring
+            timeout: integer, maximum time to wait for the GW to enter the 'desired_state' before
+                     raising an error.
+        Returns: Nat GW Dict
+
+        """
+        if not isinstance(subnet, basestring):
+            subnet = subnet.id
+        allocation = allocation or self.allocate_address()
+        if not isinstance(allocation, basestring):
+            allocation_id = allocation.allocation_id
+        response = self.boto3.client.create_nat_gateway(SubnetId=subnet, AllocationId=allocation)
+        gw =  response.get('NatGateWay', {})
+        id = id = gw.get('NatGatewayId')
+        if not id:
+            raise RuntimeError('Error. CreateNatGateway response did not contain a "NatGateWay or '
+                               'ID". Response:{0}'.format(gw))
+        if desired_state:
+            start = time.time()
+            elapsed = 0
+            attempts = 0
+            state = gw.get('State')
+            while elapsed < timeout and state != desired_state:
+                attempts += 1
+                self.log.debug('Waiting for NatGW:{0} state:"{1}". Current State:"{2}". '
+                               'Elapsed: {3}/{4}'.format(id, desired_state, state,
+                                                         elapsed, timeout))
+                time.sleep(attempts)
+                elapsed = int(time.time() - start)
+                gw = self.get_nat_gateway(id)
+                state = gw.get('State')
+            if state != desired_state:
+                raise RuntimeError('NatGW:{0} state:"{1}" != desired state:"{2}" after: {3}/{4} '
+                                   'seconds'.format(id, state, desired_state, elapsed, timeout))
+        return gw
+
+    def get_nat_gateways(self, id_list=None, state=None, subnet=None, vpc=None,
+                         max_results=1000):
+        """
+        Fetch Nat Gateways with the provided filters.
+        Args:
+            ids: The IDs of the NAT gateways.
+            state: The state of the NAT gateway; pending, failed, available, deleting, deleted
+            subnet: The ID of the subnet in which the NAT gateway resides.
+            vpc: he ID of the VPC in which the NAT gateway resides.
+
+        response = client.describe_nat_gateways(
+            NatGatewayIds=[
+              'string',
+            ],
+            Filters=[
+              {
+                  'Name': 'string',
+                  'Values': [
+                      'string',
+                  ]
+              },
+            ],
+            MaxResults=123,
+            NextToken='string'
+            )
+        Returns: List of Nat Gateways
+        """
+        natgw_ids = []
+        filters = []
+        if id_list:
+            if not isinstance(id_list, list):
+                ids = [id_list]
+            for id in ids:
+                if not isinstance(id, basestring):
+                    id = id.id
+                natgw_ids.append(id)
+        if id:
+            if not isinstance(id, basestring):
+                id = id.id
+        if state:
+            filters.append({'Name': 'state', 'Values': [state]})
+        if subnet:
+            if not isinstance(subnet, basestring):
+                subnet = subnet.id
+            filters.append({'Name': 'subnet-id', 'Values': [subnet]})
+        if vpc:
+            if not isinstance(vpc, basestring):
+                vpc = vpc.id
+            filters.append({'Name': 'vpc-id', 'Values': [vpc]})
+        response = self.boto3.client.describe_nat_gateways(NatGateWayIds=natgw_ids,
+                                                           Filter=filters,
+                                                           MaxResults=max_results)
+        return response.get('NatGateways', [])
+
+    def get_nat_gateway(self, natgw):
+        if natgw:
+            if not isinstance(natgw, basestring):
+                if isinstance(natgw, dict):
+                    natgw = natgw.get('NatGatewayId')
+                else:
+                    natgw = natgw.id
+            gws = self.get_nat_gateways(id_list=natgw)
+            if gws:
+                if len(gws) != 1:
+                    raise ValueError('Returned more than 1 gw for NatGW:{0}. Got:{1}'
+                                     .format(natgw, gws))
+                return gws[0]
+        return None
+
+
+    def show_nat_gateways(self, gws=None):
+        gws = gws or self.get_nat_gateways()
 
 
     def wait_for_instances_block_dev_mapping(self,
