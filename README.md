@@ -16,24 +16,27 @@ Nephoria attempts to provide the following utlities through a set of simple inte
 
 Installation
 ------
-If easy_install is not available in your environment use your package manager to install python-setuptools
+Use your package manager to install package dependencies first...
     
     yum install python-setuptools gcc python-devel git libffi-devel openssl-devel readline-devel patch
     apt-get install python-setuptools gcc python-dev git libffi-devel openssl-devel readline-devel patch
 
-Installing nephoria and its dependencies is as easy as:
 
-    easy_install nephoria
+Installing nephoria using pip: 
 
-For development purposes you can then clone the code from github and then reinstall with your changes
+    yum install python-pip
+    pip install nephoria
+
+
+
+Installing or developing from source. Clone the code from github, make changes,  and then install or re-install  with your changes:
 
     git clone https://github.com/eucalyptus/nephoria.git
     cd nephoria
     [CHANGE CODE]
     python setup.py install
 
-
-### Branches
+**See nephoria/toolkit helper scripts for more install options
 
 
 Main Classes
@@ -96,8 +99,60 @@ user = tc.get_user_by_name('testrunner', 'admin')
 user.ec2.show_images()
 ```
 =======
+# Basic User interface to connect to EUCA or AWS clouds...
+```
+# Create a UserContext with existing; Access Key, Secret Key and the region information...
+#Connect to an AWS cloud and region...
+user_aws = UserContext(aws_access_key='****myaccesskey****', aws_secret_key='************mysecretkey*********',  region='us-west-1', domain='amazonaws.com')
+#Connect to a Eucalyptus Cloud...
+user_euca = UserContext(aws_access_key='****myaccesskey****', aws_secret_key='************mysecretkey*********',  region='', domain='myeucacloud.com')
+
+# User has 3 interfaces to the cloud;  1)ops, 2)boto2, 3)boto3. 
+# The 'ops' interfaces are intended to provide test or convienence wrappers over an underlying boto interfaces. 
+# This is intended to allow specific tests or checks to be shared and repeated easilly throughout the library. 
+
+user.ec2.*
+user.ec2.boto2.*
+user.ec2.boto3.*
+
+user.iam.*
+user.iam.boto2.*
+user.iam.boto3.*
+
+user.s3.*
+user.s3.boto2.*
+user.s3.boto3.*
+
+...and so on...
+
+
+#Examples:
+Ops:
+In : user_aws.ec2.get_instances()
+Out: 
+[Instance:i-2bf2xxxx,
+ Instance:i-bbe3xxxx,
+ Instance:i-0cb9xxxx]
+Boto2:
+In : user.ec2.boto2.get_all_instances()
+Out: 
+[Reservation:r-4fbfxxxx,
+ Reservation:r-2fcaxxxx,
+ Reservation:r-43b3xxxx,
+
+Boto3:
+In : tc.admin.ec2.boto3.client.describe_instances()
+Out: 
+{u'Reservations': []}
+)
+```
+
+
+=======
 
 # ...or easilly create a new account and/or user on the cloud...
+------
+```
 user = tc.create_user_using_cloudadmin('newaccount', 'admin')
 user.iam.show_user_summary()
 instance = user.ec2.run_image()
@@ -106,6 +161,7 @@ instance = user.ec2.run_image()
 
 Creating and Running TestCases
 ------
+```
 The primary test case class is CliTestRunner(). This class intends to provide consistent cli
 driven testcases, testcase arguements, and results.
 The tests typically require 1 or more of the following:
@@ -118,7 +174,7 @@ The tests typically require 1 or more of the following:
 
 See the README under the testcase_utils as well
 as the existing testcases in the testcases\ directory for more info.
-
+```
 Example TestCase run:
 ```
 python load_hvm_image.py --clc 192.168.0.199 --image-url http://images.qa1/disk.img --test-list test1_check_args
