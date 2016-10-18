@@ -4882,21 +4882,116 @@ disable_root: false"""
         printmethod = printmethod or self.log.info
         printmethod(buf)
 
-    def delete_nat_gateways(self, gateways):
-        gws = []
+    def delete_nat_gateways(self, gateways=None, timeout=180, desired_state='deleted',
+                            failed_states=None):
+        """
+        Deletes a single or list of NAT Gateways. If a no gateways are provided it will attempt to
+        delete all the gateways visible to the user making the request. If timeout is not None,
+        the gateways will be monitored until they enter the 'deleted' state or are no longer
+        present in the describe requests.
+        Possible states:  pending | failed | available | deleting | deleted
+        Args:
+            gateways: A gateway or list of gateways to be deleted. These can be gateway ids,
+            boto3 gateway dicts, or an obj containing the id ie obj.id.
+            timeout: Int timeout in seconds to wait for the gateways to enter the desired state.
+            desired_state: string representing the desired state of the GWs. Default is 'deleted'.
+            failed_states: list of strings representing the states to error upon.
+                           If 'None', the default used is: ['pending', 'failed', 'available']
+        Raises: Runtime Error for failed gws. 
+
+        """
+        if failed_states is None:
+            failed_states = ['pending', 'failed', 'available']
+        gws_ids = []
         if not gateways:
             return
         if not isinstance(gateways, list):
             gateways = [gateways]
         for gw in gateways:
             if isinstance(gw, basestring):
-                gws.append(gw)
+                gws_ids.append(gw)
             elif isinstance(gw, dict):
-                gws.append(gw.get('NatGatewayId'))
+                gws_ids.append(gw.get('NatGatewayId'))
             else:
-                gws.append(gw.id)
-        for gw in gws:
-            self.boto3.client.delete_nat_gateway(NatGatewayId=gw.get('NatGatewayId'))
+                gws_ids.append(gw.id)
+        def in_desired_state(gw):
+            if desired_state:
+                if not gw.get('State') == desired_state:
+                    return False
+            return True
+
+        def in_failed_state(gw):
+            if failed_states:
+                if gw.get('State') in failed_states:
+                   return True
+            return False
+        failed = {}
+        good = []
+        remove = []
+        if timeout:
+            for gw in gws_ids:
+                try:
+                    self.boto3.client.delete_nat_gateway(NatGatewayId=gw)
+                except ClientError as E:
+                    remove.append(gw)
+                    status = E.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+                    if re.search('NatGatewayNotFound', E.message) and status == 400:
+                        self.log.debug('NAT GW:{0} not found during delete, assuming its already '
+                                       'deleted'.format(gw))
+                    else:
+                        failed[gw] = str(E)
+        for gw in remove:
+            gws_ids.pop(gw)
+        if timeout:
+            start = time.time()
+            elapsed = 0
+            checklist = copy.copy(gws_ids)
+            while elapsed < timeout and checklist:
+                elapsed = int(time.time() - start)
+                waiting = []
+                for gw_id in gws_ids:
+                    if gw_id in checklist:
+                        try:
+                            gw = self.get_nat_gateway(gw)
+                        except ClientError as E:
+                            checklist.pop(gw_id)
+                            status = E.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+                            if re.search('NatGatewayNotFound', E.message) and status == 400:
+                                self.log.debug(
+                                    'NAT GW:{0} not found during delete, assuming its already '
+                                    'deleted'.format(gw_id))
+                            else:
+                                failed[gw_id] = str(E)
+                        else:
+                            if in_desired_state(gw):
+                                checklist.pop(gw_id)
+                            elif in_failed_state(gw):
+                                checklist.pop(gw_id)
+                                failed[gw] = "Gateway:{0} in defined failed state:{1}"\
+                                    .format(gw_id, gw.get('State'))
+                            else:
+                                waiting.append("{0}:{1}".format(gw_id, gw.get('State')))
+                self.log.debug('Waiting on {0} NATGWs to enter desired state:{1} after '
+                               'elapsed:{2}/{3}'.format(len(checklist), desired_state,
+                                                        elapsed, timeout))
+                if waiting:
+                    self.log.debug('Waiting on GWS: "{0}"'.format(", ".join(waiting)))
+                if checklist:
+                    time.sleep(5)
+            for gw in checklist:
+                failed[gw] = "GW:{0} did not enter desired state:{1} after elapsed:{2}/{3}"\
+                    .format(gw, desired_state, elapsed, timeout)
+        if failed:
+            failmsg = "ERRORS detected with the following NAT GWs during delete:\n"
+            for gwid, msg in failed.iteritems():
+                failmsg += "NAT GW:{0}, ERROR:{1}\n".format(gwid, msg)
+            self.log.error(failmsg)
+            raise RuntimeError(failmsg)
+
+
+
+
+
 
 
 

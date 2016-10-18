@@ -5338,7 +5338,7 @@ class VpcSuite(CliTestRunner):
         For All Zones...
         - Confirm the limit can be reached
         - Confirm the limit can not not be exceeded, and proper errors are returned
-        -
+        - Confirm that when NATGWs are deleted they can be replaced up to limit amount
         """
 
         prop = self.tc.sysadmin.get_property('cloud.vpc.natgatewaysperavailabilityzone')
@@ -5434,7 +5434,7 @@ class VpcSuite(CliTestRunner):
                     user.ec2.delete_subnet_and_dependency_artifacts(subnet)
                 for eip in eips:
                     eip.delete()
-        self.status('test and cleanup complete')
+        self.status('Test and test cleanup complete')
 
     def test8z0_test_clean_up_nat_gw_test_vpc_dependencies(self):
         """
