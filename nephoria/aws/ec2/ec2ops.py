@@ -4813,6 +4813,7 @@ disable_root: false"""
         i_hdr = 'IPINFO'.ljust(i_len)
         buf = ""
         for gw in gws:
+            gw = copy.copy(gw)
             if not isinstance(gw, dict):
                 gw = self.get_nat_gateway(gw)
             if not gw:

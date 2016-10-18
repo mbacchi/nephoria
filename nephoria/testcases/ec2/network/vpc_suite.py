@@ -5102,7 +5102,8 @@ class VpcSuite(CliTestRunner):
         - The ENI can described using the available request filters
         - An Elastic public ip can be associated with the NATGW upon creation
         - The ENI and EIP attributes can be described using available request filters
-        - Checks the subnet and vpc in the request to that in the describe natgw response 
+        - Checks the subnet and vpc in the request to that in the describe natgw response
+        - Attempts to use the filters for NATGW ID, STATE, SUBNET, and VPC to fetch the NATGW
 
         """
         if clean is None:
@@ -5151,6 +5152,14 @@ class VpcSuite(CliTestRunner):
                     raise  ValueError('Nat GW vpc_id:{0} doesnt equal requested subnet:{1} and '
                                       'vpc{2}'.format(natgw.get('VpcId'),
                                                       subnet.id, subnet.vpc_id))
+                self.status('Attempt to fetch the NATGW with filters for id, state, vpc, '
+                            'and subnet...')
+                gw = user.ec2.get_nat_gateways(gwid, state=natgw.get('State'),
+                                               vpc=natgw.get('VpcId'),
+                                               subnet=natgw.get('SubnetId'))
+                if gwid != gw.get('NatGatewayId'):
+                    raise ValueError('Describe NATGWs with filters for id, state, subnet and vpc '
+                                     'failed to return the newly created natgw:{0}'.format(gwid))
 
         except Exception as E:
             self.log.error(red('{0}\nError during nat_gw_basic_creation_and_attribute_checks:{1}'
