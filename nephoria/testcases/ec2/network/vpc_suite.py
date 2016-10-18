@@ -5091,37 +5091,84 @@ class VpcSuite(CliTestRunner):
             test_vpc = test_vpc[0]
         return test_vpc
 
-    def test8d0_nat_gw_basic_creation_and_eni_check(self, clean=True):
+    def test8d0_nat_gw_basic_creation_and_attribute_check(self, clean=None):
         """
         When a NAT gateway is created, it receives an elastic network interface that's
         automatically assigned a private IP address from the IP address range of your subnet.
+        This test verfiies the following:
+        - A Nat GW can be created within a subnet
+        - The GW can be described using the available request filters
+        - An ENI is properly assigned to that NAT GW
+        - The ENI can described using the available request filters
+        - An Elastic public ip can be associated with the NATGW upon creation
+        - The ENI and EIP attributes can be described using available request filters
+        - Checks the subnet and vpc in the request to that in the describe natgw response 
+
         """
+        if clean is None:
+            clean = not self.args.no_clean
         user = self.user
         vpc = self.test8b0_get_vpc_for_nat_gw_tests()
         subnets = []
+        eips = []
+        gws = []
+
         try:
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
-                subnet = self.get_non_default_test_subnets_for_vpc(vpc=vpc, user=user, zone=zone,
-                                                                   count=1)[0]
+                subnet = subnets = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
                 subnets.append(subnet)
-                eip = user.ec2.get
-                natgw = user.ec2.create_nat_gateway(subnet)
+                eip = user.ec2.allocate_address()
+                eips.append(eip)
+                self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id)
+                gwid = natgw.get('NatGatewayId')
+                gws.append(gwid)
+                self.status('Created NatGateway:{0}'.format(gwid))
+                gw_enis = []
+                for addr in natgw.get('NatGatewayAddresses'):
+                    gw_enis.append(addr.get('NetworkInterfaceId'))
+
+                for filter in [{'attachment.nat-gateway-id': gwid},
+                               {'addresses.association.public-ip':
+                                    natgw.get('NatGatewayAddresses')[0].get('PublicIp')}]:
+
+                    eni = user.ec2.connection.get_all_network_interfaces(filters=filter)
+                    if eni:
+                        if eni in gw_enis:
+                            self.status('PASS: Filter:"{0}" returned attached ENI:{1}'
+                                        .format(filter, eni.id))
+                        else:
+                            raise ValueError('Filter:"{0}" returned ENI:{1} that is not '
+                                             'part of GW:{2}'.format(filter, eni.id, gwid))
+                    else:
+                        raise ValueError('Filter:"{0} did not return ENI:{1} for NATGW:{2}'
+                                         .format(filter, eni.id, gwid))
+                if subnet.id != natgw.get('SubnetId'):
+                    raise  ValueError('Nat GW subnetid:{0} != subnet in request:{1}'
+                                      .format(natgw.get('SubnetId'), subnet.id))
+                if subnet.vpc_id != natgw.get('VpcId'):
+                    raise  ValueError('Nat GW vpc_id:{0} doesnt equal requested subnet:{1} and '
+                                      'vpc{2}'.format(natgw.get('VpcId'),
+                                                      subnet.id, subnet.vpc_id))
 
         except Exception as E:
-            self.log.error(red('{0}\nError during ENI migration tests:{1}'
+            self.log.error(red('{0}\nError during nat_gw_basic_creation_and_attribute_checks:{1}'
                                .format(get_traceback(), E)))
             raise E
         finally:
             self.status('Beginning test cleanup. Last Status msg:"{0}"...'
                         .format(self.last_status_msg))
-            self.restore_vm_types()
             if clean:
+                if gws:
+                    user.ec2.boto3.client.delete_nat_gateways(gws)
                 for subnet in subnets:
                     self.status('Attempting to delete subnet and dependency artifacts from '
                                 'this test')
                     user.ec2.delete_subnet_and_dependency_artifacts(subnet)
-        self.status('test8d0_nat_gw_basic_creation_and_eni_check complete')
+                for eip in eips:
+                    eip.delete()
+        self.status('test complete')
 
     def test_8e0_nat_gw_create_gw_with_in_use_eip(self):
         """

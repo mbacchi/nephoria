@@ -4706,8 +4706,8 @@ disable_root: false"""
         if not isinstance(allocation, basestring):
             allocation_id = allocation.allocation_id
         response = self.boto3.client.create_nat_gateway(SubnetId=subnet, AllocationId=allocation)
-        gw =  response.get('NatGateWay', {})
-        id = id = gw.get('NatGatewayId')
+        gw =  response.get('NatGateway')
+        id = gw.get('NatGatewayId')
         if not id:
             raise RuntimeError('Error. CreateNatGateway response did not contain a "NatGateWay or '
                                'ID". Response:{0}'.format(gw))
@@ -4757,18 +4757,22 @@ disable_root: false"""
             )
         Returns: List of Nat Gateways
         """
-        natgw_ids = []
+        kwargs = {'MaxResults': max_results}
         filters = []
+        natgw_ids = []
         if id_list:
             if not isinstance(id_list, list):
-                ids = [id_list]
-            for id in ids:
-                if not isinstance(id, basestring):
+                id_list = [id_list]
+            for id in id_list:
+                if isinstance(id, basestring):
+                    id = id
+                elif isinstance(id, dict):
+                    id = id.get('NatGatewayId')
+                else:
                     id = id.id
                 natgw_ids.append(id)
-        if id:
-            if not isinstance(id, basestring):
-                id = id.id
+            if natgw_ids:
+                kwargs['NatGatewayIds'] = natgw_ids
         if state:
             filters.append({'Name': 'state', 'Values': [state]})
         if subnet:
@@ -4779,9 +4783,10 @@ disable_root: false"""
             if not isinstance(vpc, basestring):
                 vpc = vpc.id
             filters.append({'Name': 'vpc-id', 'Values': [vpc]})
-        response = self.boto3.client.describe_nat_gateways(NatGateWayIds=natgw_ids,
-                                                           Filter=filters,
-                                                           MaxResults=max_results)
+        if filters:
+            kwargs['Filter'] = filters
+        self.log.debug('describe_nat_gateways({0})'.format(kwargs))
+        response = self.boto3.client.describe_nat_gateways(**kwargs)
         return response.get('NatGateways', [])
 
     def get_nat_gateway(self, natgw):
@@ -4800,8 +4805,84 @@ disable_root: false"""
         return None
 
 
-    def show_nat_gateways(self, gws=None):
+    def show_nat_gateways(self, gws=None, printmethod=None, n_len=30, i_len=70, printme=True):
         gws = gws or self.get_nat_gateways()
+        if not isinstance(gws, list):
+            gws = [gws]
+        n_hdr = 'NATGW'.ljust(n_len)
+        i_hdr = 'IPINFO'.ljust(i_len)
+        buf = ""
+        for gw in gws:
+            if not isinstance(gw, dict):
+                gw = self.get_nat_gateway(gw)
+            if not gw:
+                self.log.warning('Nat Gateway no found for:"{0}"'.format(gw))
+                continue
+            id = gw.pop('NatGatewayId')
+            create_time = gw.pop('CreateTime')
+            header_pt = PrettyTable(["{0}    CreateTime: {1}"
+                                    .format(markup("NatGateWayID: {0}".format(id),
+                                                   markups=[TextStyle.BOLD,
+                                                            BackGroundColor.BG_WHITE,
+                                                            ForegroundColor.BLUE]), create_time)])
+            header_pt.align = 'l'
+            main_pt = PrettyTable([n_hdr, i_hdr])
+            main_pt.align = 'l'
+            main_pt.border = False
+            main_pt.max_width[n_hdr] = n_len
+            main_pt.max_width[i_hdr] = i_len
+            main_pt.padding_width = 0
+            main_pt.header = False
+            nat_pt = PrettyTable(['key', 'value'])
+            nat_pt.align = 'l'
+            nat_pt.header = False
+            nat_pt.border = False
+            nat_pt.padding_width = 0
+            addrs = gw.pop('NatGatewayAddresses')
+
+            if addrs:
+                headers = [markup(x, TextStyle.UNDERLINE) for x in addrs[0].keys()]
+                ip_pt = PrettyTable(headers)
+                for h in headers:
+                    ip_pt.max_width[h] = i_len / 4
+                ip_pt.padding_width = 1
+                ip_pt.align = 'l'
+                ip_pt.border = False
+                ip_pt.vrules = 2
+                ip_pt.hrules = 0
+                for addr in addrs:
+                    ip_pt.add_row(addr.values())
+            for key, value in gw.iteritems():
+                nat_pt.add_row(["{0}: ".format(markup(key,
+                                                      markups=[TextStyle.BOLD,
+                                                               TextStyle.UNDERLINE])),
+                                value])
+            main_pt.add_row([nat_pt, ip_pt])
+            header_pt.add_row([main_pt])
+            buf += "\n{0}\n\n".format(header_pt)
+        if not printme:
+            return buf
+        printmethod = printmethod or self.log.info
+        printmethod(buf)
+
+    def delete_nat_gateways(self, gateways):
+        gws = []
+        if not gateways:
+            return
+        if not isinstance(gateways, list):
+            gateways = [gateways]
+        for gw in gateways:
+            if isinstance(gw, basestring):
+                gws.append(gw)
+            elif isinstance(gw, dict):
+                gws.append(gw.get('NatGatewayId'))
+            else:
+                gws.append(gw.id)
+        for gw in gws:
+            self.boto3.client.delete_nat_gateway(NatGatewayId=gw.get('NatGatewayId'))
+
+
+
 
 
     def wait_for_instances_block_dev_mapping(self,
