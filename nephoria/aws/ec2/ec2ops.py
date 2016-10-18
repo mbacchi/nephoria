@@ -4686,7 +4686,7 @@ disable_root: false"""
         else:
             return pt
 
-    def create_nat_gateway(self, subnet, allocation=None, desired_state='available',
+    def create_nat_gateway(self, subnet, eip_allocation=None, desired_state='available',
                            failed_states=None, timeout=180):
 
         """
@@ -4694,7 +4694,7 @@ disable_root: false"""
         Possible states:  pending | failed | available | deleting | deleted
         Args:
             subnet: subnet id or subnet obj
-            allocation: EIP allocation id or EIP obj
+            eip_allocation: EIP allocation id or EIP obj
             desired_state: string representing the desired state to monitor the NAT GW for. If
                            None is provided, the NAT GW will be returned without monitoring
             failed_states: list of strings representing NAT GW states to error out on.
@@ -4706,22 +4706,24 @@ disable_root: false"""
         """
         if not isinstance(subnet, basestring):
             subnet = subnet.id
-        allocation = allocation or self.allocate_address()
-        if not isinstance(allocation, basestring):
-            allocation_id = allocation.allocation_id
+        eip_allocation = eip_allocation or self.allocate_address()
+        if not isinstance(eip_allocation, basestring):
+            allocation_id = eip_allocation.allocation_id
         if failed_states is None:
             failed_states = ['failed']
         if not isinstance(failed_states, list):
             failed_states = [failed_states]
-        response = self.boto3.client.create_nat_gateway(SubnetId=subnet, AllocationId=allocation)
+        response = self.boto3.client.create_nat_gateway(SubnetId=subnet, AllocationId=allocation_id)
         gw =  response.get('NatGateway')
         id = gw.get('NatGatewayId')
         if not id:
             raise RuntimeError('Error. CreateNatGateway response did not contain a "NatGateWay or '
                                'ID". Response:{0}'.format(gw))
         def check_failed_state():
+            failmsg = gw.get('FailureMessage', None)
             if failed_states and gw.get('State') in failed_states:
-                raise ValueError('Nat GW:{0} is a failed state:{1}'.format(id, gw.get('State')))
+                raise ValueError('Nat GW:{0} is a failed state:{1}. Message:{2}'
+                                 .format(id, gw.get('State'), failmsg))
         check_failed_state()
         if desired_state:
             start = time.time()

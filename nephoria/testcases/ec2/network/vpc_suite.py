@@ -52,6 +52,7 @@ from boto.vpc.vpc import VPC
 from boto.ec2.image import Image
 from boto.ec2.group import Group
 from boto.ec2.securitygroup import SecurityGroup
+from botocore.exceptions import ClientError
 from random import randint
 import socket
 from prettytable import PrettyTable
@@ -5117,12 +5118,12 @@ class VpcSuite(CliTestRunner):
         try:
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
-                subnet = subnets = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
                 subnets.append(subnet)
                 eip = user.ec2.allocate_address()
                 eips.append(eip)
                 self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
-                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id)
+                natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
                 gwid = natgw.get('NatGatewayId')
                 gws.append(gwid)
                 self.status('Created NatGateway:{0}'.format(gwid))
@@ -5195,12 +5196,12 @@ class VpcSuite(CliTestRunner):
         try:
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
-                subnet = subnets = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
                 subnets.append(subnet)
                 eip = user.ec2.allocate_address()
                 eips.append(eip)
                 self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
-                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id)
+                natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
                 gwid = natgw.get('NatGatewayId')
                 gws.append(gwid)
                 user.e2.show_nat_gateway(natgw)
@@ -5208,20 +5209,29 @@ class VpcSuite(CliTestRunner):
                 try:
                     self.status('Attempting to create a 2nd NATGW with the same EIP, '
                                 'this should fail...')
-                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id,
-                                                    desired_state='failed',
-                                                    failed_states=['available', 'deleting',
-                                                                   'deleted'])
-                if natgw:
-                    if not hasattr('FailureMessage', natgw):
-                        raise ValueError('NatGW:{0} failed but did not contain FailureMessage '
-                                         'attr?'.format(gwid))
-                else:
-                    raise ValueError('Create Failed as expected but did not return failed NATGW '
-                                     'obj in response')
-                if not re.search('already associated', natgw.get('FailureMessage')):
-                    raise ValueError('NatGW:{0} Failure message did not contain expected text, '
-                                     'got:"{1}"'.format(gwid, natgw.get('FailureMessage') ))
+                    natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id,
+                                                        desired_state='failed',
+                                                        failed_states=['available', 'deleting',
+                                                                       'deleted'])
+                    if natgw:
+                        if not hasattr('FailureMessage', natgw):
+                            raise ValueError('NatGW:{0} failed but did not contain '
+                                             'FailureMessage attr?'.format(gwid))
+                        if not re.search('already associated', natgw.get('FailureMessage')):
+                            raise ValueError('NatGW:{0} Failure message did not contain '
+                                             'expected text, got:"{1}"'
+                                             .format(gwid, natgw.get('FailureMessage')))
+                        else:
+                            self.status('PASS: Failed to create NATGW with EIP that was in-use')
+                    else:
+                        raise ValueError('Create Failed as expected but did not return '
+                                         'failed NATGW obj in response')
+                except Exception as E:
+                    self.log.error('GOT UNEXPECTED ERROR - creating an NATGW with an in-use EIP '
+                                   'should return the gw in pending or failed status w/o error '
+                                   'in the response')
+                    raise E
+                self.status('Test completed successfully for all zones')
         except Exception as E:
             self.log.error(red('{0}\nError during test:{1}}'
                                .format(get_traceback(), E)))
@@ -5240,7 +5250,7 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test complete')
 
-    def test8e1_nat_gw_eip_association_negative_tests(self):
+    def test8e1_nat_gw_eip_association_negative_tests(self, clean=None):
         """
         You can associate exactly one Elastic IP address with a NAT gateway.
         You cannot disassociate an Elastic IP address from a NAT gateway after it's created.
@@ -5263,12 +5273,12 @@ class VpcSuite(CliTestRunner):
         try:
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
-                subnet = subnets = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
                 subnets.append(subnet)
                 eip = user.ec2.allocate_address()
                 eips.append(eip)
                 self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
-                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id)
+                natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
                 gwid = natgw.get('NatGatewayId')
                 gws.append(gwid)
                 user.e2.show_nat_gateway(natgw)
@@ -5278,8 +5288,8 @@ class VpcSuite(CliTestRunner):
                         action_name = action.__func__.__name__
                         action()
                     except EC2ResponseError as EE:
-                        if E.status == 400 and E.reason == 'InvalidIPAddress.InUse':
-                            self.status('Got correct error for EIP {0} attempt'
+                        if EE.status == 400 and EE.reason == 'InvalidIPAddress.InUse':
+                            self.status('Got correct error for NATGW IN-USE EIP {0} attempt'
                                         .format(action_name))
                         else:
                             self.status('Attempting to {0} an EIP in use by natgw, got error but '
@@ -5287,7 +5297,7 @@ class VpcSuite(CliTestRunner):
                     else:
                         raise RuntimeError('Test was able to {0} an EIP:{1} in use by:{2}'
                                            .format(action_name, eip.id, gwid))
-            self.status('Test Completed Successfully')
+            self.status('Test Completed Successfully for all zones')
         except Exception as E:
             self.log.error(red('{0}\nError during test:{1}}'
                                .format(get_traceback(), E)))
@@ -5322,13 +5332,109 @@ class VpcSuite(CliTestRunner):
         raise SkipTestException('Test Not Completed at this time')
 
 
-    def test8x0_nat_gw_max_gw_per_zone_limit(self):
+    def test8x0_nat_gw_max_gw_per_zone_limit(self, clean=None):
         """
         Test the eucalyptus property:cloud.vpc.natgatewaysperavailabilityzone
-        Confirm the limit can be reached and not exceeded.
+        For All Zones...
+        - Confirm the limit can be reached
+        - Confirm the limit can not not be exceeded, and proper errors are returned
+        -
         """
-        raise SkipTestException('Test Not Completed at this time')
 
+        prop = self.tc.sysadmin.get_property('cloud.vpc.natgatewaysperavailabilityzone')
+        prop.show()
+        limit = int(prop.value)
+        if clean is None:
+            clean = not self.args.no_clean
+        user = self.user
+        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        subnets = []
+        eips = []
+        try:
+            self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
+            for zone in self.zones:
+                gws = []
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnets.append(subnet)
+                for x in xrange(0, limit):
+                    eip = user.ec2.allocate_address()
+                    eips.append(eip)
+                    self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                    natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
+                    gwid = natgw.get('NatGatewayId')
+                    gws.append(gwid)
+                    user.e2.show_nat_gateway(natgw)
+                    self.status('Created NatGateway #{0}/{1}, {2}'.format(x, limit, gwid))
+                if x != limit:
+                    raise ValueError('Test did not create the correct number of NATGWs'
+                                     ' x:{0} != prop:{1}'.format(x, limit))
+                gws = user.ec2.get_nat_gateways()
+                if len(gws) != limit:
+                    raise ValueError('Fetched GWs {0} != limit set by property:{1}'
+                                     .format(len(gws), limit))
+                else:
+                    self.status('PASS: Could create {0} NATGWs in Zone:{1} == prop limit:{2}'
+                                .format(len(gws), zone, limit))
+                self.status('Attempting to exceed property value natgw limit...')
+                try:
+                    eip = user.ec2.allocate_address()
+                    eips.append(eip)
+                    self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                    natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
+                    gwid = natgw.get('NatGatewayId')
+                    gws.append(gwid)
+                    user.e2.show_nat_gateway(natgw)
+                    self.status('Created NatGateway #{0}/{1}, {2}'.format(len(gws), limit, gwid))
+                except ValueError as VE:
+                    if re.search('NatGatewayLimitExceeded', str(VE)):
+                        self.status('PASS Natgw failed with proper fail message:"{0}"'.format(VE))
+                    else:
+                        raise VE
+                except ClientError as CE:
+                    if re.search('NatGatewayLimitExceeded', CE.message):
+                        self.status('PASS Natgw failed with proper fail message:"{0}"'.format(CE))
+                    else:
+                        raise CE
+                self.status('PASS: Was not able to exceed NATGWs:{0} per zone:{1}'
+                            .format(limit, zone))
+                self.status('Deleting a NATGW and attempting to replace it...')
+                try:
+                    gw = gws.pop()
+                    user.ec2.delete_nat_gateways(gw)
+                    time.sleep(2)
+                    eip = user.ec2.allocate_address()
+                    eips.append(eip)
+                    self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                    natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
+                    gwid = natgw.get('NatGatewayId')
+                    gws.append(gwid)
+                    user.e2.show_nat_gateway(natgw)
+                    self.status('Created NatGateway #{0}/{1}, {2}'.format(x, limit, gwid))
+                except Exception as E:
+                    self.log.error("{0}\nFailed to create replacement NATGW within property "
+                                   "limit:{1}".format(get_traceback(), limit))
+                    raise E
+                self.status('All prop limit tests passed for zone:{0}'.format(zone))
+            self.status('Prop limit tests complete for all zones')
+        except Exception as E:
+            self.log.error(red('{0}\nError during test:{1}}'
+                               .format(get_traceback(), E)))
+            raise E
+        finally:
+            self.status('Beginning test cleanup. Last Status msg:"{0}"...'
+                        .format(self.last_status_msg))
+            if clean:
+                for subnet in subnets:
+                    self.status('Attempting to delete subnet and dependency artifacts from '
+                                'this test')
+                    gws = user.ec2.get_nat_gateways(subnet=subnet)
+                    if gws:
+                        self.status('Deleting all nat gws for subnet:{0}'.format(subnet))
+                        user.ec2.boto3.client.delete_nat_gateways(gws)
+                    user.ec2.delete_subnet_and_dependency_artifacts(subnet)
+                for eip in eips:
+                    eip.delete()
+        self.status('test and cleanup complete')
 
     def test8z0_test_clean_up_nat_gw_test_vpc_dependencies(self):
         """
