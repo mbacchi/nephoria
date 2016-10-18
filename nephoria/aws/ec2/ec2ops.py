@@ -4686,15 +4686,19 @@ disable_root: false"""
         else:
             return pt
 
-    def create_nat_gateway(self, subnet, allocation=None, desired_state='available', timeout=60):
+    def create_nat_gateway(self, subnet, allocation=None, desired_state='available',
+                           failed_states=None, timeout=180):
 
         """
         Attempts to create a NAT Gateway and monitor it to the desired_state.
+        Possible states:  pending | failed | available | deleting | deleted
         Args:
             subnet: subnet id or subnet obj
             allocation: EIP allocation id or EIP obj
             desired_state: string representing the desired state to monitor the NAT GW for. If
                            None is provided, the NAT GW will be returned without monitoring
+            failed_states: list of strings representing NAT GW states to error out on.
+                           If None, the default value is used: ['failed']
             timeout: integer, maximum time to wait for the GW to enter the 'desired_state' before
                      raising an error.
         Returns: Nat GW Dict
@@ -4705,17 +4709,26 @@ disable_root: false"""
         allocation = allocation or self.allocate_address()
         if not isinstance(allocation, basestring):
             allocation_id = allocation.allocation_id
+        if failed_states is None:
+            failed_states = ['failed']
+        if not isinstance(failed_states, list):
+            failed_states = [failed_states]
         response = self.boto3.client.create_nat_gateway(SubnetId=subnet, AllocationId=allocation)
         gw =  response.get('NatGateway')
         id = gw.get('NatGatewayId')
         if not id:
             raise RuntimeError('Error. CreateNatGateway response did not contain a "NatGateWay or '
                                'ID". Response:{0}'.format(gw))
+        def check_failed_state():
+            if failed_states and gw.get('State') in failed_states:
+                raise ValueError('Nat GW:{0} is a failed state:{1}'.format(id, gw.get('State')))
+        check_failed_state()
         if desired_state:
             start = time.time()
             elapsed = 0
             attempts = 0
             state = gw.get('State')
+
             while elapsed < timeout and state != desired_state:
                 attempts += 1
                 self.log.debug('Waiting for NatGW:{0} state:"{1}". Current State:"{2}". '
@@ -4725,6 +4738,7 @@ disable_root: false"""
                 elapsed = int(time.time() - start)
                 gw = self.get_nat_gateway(id)
                 state = gw.get('State')
+                check_failed_state()
             if state != desired_state:
                 raise RuntimeError('NatGW:{0} state:"{1}" != desired state:"{2}" after: {3}/{4} '
                                    'seconds'.format(id, state, desired_state, elapsed, timeout))

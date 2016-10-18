@@ -5179,23 +5179,132 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test complete')
 
-    def test_8e0_nat_gw_create_gw_with_in_use_eip(self):
+    def test_8e0_nat_gw_create_gw_with_in_use_eip(self, clean=None):
         """
         Attempt to create a NAT GW with an elastic IP which is already associated to a VM. This
         should not be allowed.
         """
-        raise SkipTestException('Test Not Completed at this time')
+        if clean is None:
+            clean = not self.args.no_clean
+        user = self.user
+        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        subnets = []
+        eips = []
+        gws = []
 
-    def test8e1_nat_gw_eip_association(self):
+        try:
+            self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
+            for zone in self.zones:
+                subnet = subnets = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnets.append(subnet)
+                eip = user.ec2.allocate_address()
+                eips.append(eip)
+                self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id)
+                gwid = natgw.get('NatGatewayId')
+                gws.append(gwid)
+                user.e2.show_nat_gateway(natgw)
+                self.status('Created First NatGateway:{0}'.format(gwid))
+                try:
+                    self.status('Attempting to create a 2nd NATGW with the same EIP, '
+                                'this should fail...')
+                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id,
+                                                    desired_state='failed',
+                                                    failed_states=['available', 'deleting',
+                                                                   'deleted'])
+                if natgw:
+                    if not hasattr('FailureMessage', natgw):
+                        raise ValueError('NatGW:{0} failed but did not contain FailureMessage '
+                                         'attr?'.format(gwid))
+                else:
+                    raise ValueError('Create Failed as expected but did not return failed NATGW '
+                                     'obj in response')
+                if not re.search('already associated', natgw.get('FailureMessage')):
+                    raise ValueError('NatGW:{0} Failure message did not contain expected text, '
+                                     'got:"{1}"'.format(gwid, natgw.get('FailureMessage') ))
+        except Exception as E:
+            self.log.error(red('{0}\nError during test:{1}}'
+                               .format(get_traceback(), E)))
+            raise E
+        finally:
+            self.status('Beginning test cleanup. Last Status msg:"{0}"...'
+                        .format(self.last_status_msg))
+            if clean:
+                if gws:
+                    user.ec2.boto3.client.delete_nat_gateways(gws)
+                for subnet in subnets:
+                    self.status('Attempting to delete subnet and dependency artifacts from '
+                                'this test')
+                    user.ec2.delete_subnet_and_dependency_artifacts(subnet)
+                for eip in eips:
+                    eip.delete()
+        self.status('test complete')
+
+    def test8e1_nat_gw_eip_association_negative_tests(self):
         """
         You can associate exactly one Elastic IP address with a NAT gateway.
         You cannot disassociate an Elastic IP address from a NAT gateway after it's created.
         If you need to use a different Elastic IP address for your NAT gateway,
         you must create a new NAT gateway with the required address, update your route tables,
         and then delete the existing NAT gateway if it's no longer required.
-        Returns:
+        Test Attempts:
+        - Creates a NAT GW in each zone
+        - Attempts to delete the associated EIP
+        - Attempts to dis-associate the EIP
         """
-        raise SkipTestException('Test Not Completed at this time')
+        if clean is None:
+            clean = not self.args.no_clean
+        user = self.user
+        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        subnets = []
+        eips = []
+        gws = []
+
+        try:
+            self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
+            for zone in self.zones:
+                subnet = subnets = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnets.append(subnet)
+                eip = user.ec2.allocate_address()
+                eips.append(eip)
+                self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                natgw = user.ec2.create_nat_gateway(subnet, allocation=eip.allocation_id)
+                gwid = natgw.get('NatGatewayId')
+                gws.append(gwid)
+                user.e2.show_nat_gateway(natgw)
+                self.status('Created NatGateway:{0}'.format(gwid))
+                for action in [eip.delete, eip.disassociate]:
+                    try:
+                        action_name = action.__func__.__name__
+                        action()
+                    except EC2ResponseError as EE:
+                        if E.status == 400 and E.reason == 'InvalidIPAddress.InUse':
+                            self.status('Got correct error for EIP {0} attempt'
+                                        .format(action_name))
+                        else:
+                            self.status('Attempting to {0} an EIP in use by natgw, got error but '
+                                        'not the expected one:"{1}"'.format(action_name, EE))
+                    else:
+                        raise RuntimeError('Test was able to {0} an EIP:{1} in use by:{2}'
+                                           .format(action_name, eip.id, gwid))
+            self.status('Test Completed Successfully')
+        except Exception as E:
+            self.log.error(red('{0}\nError during test:{1}}'
+                               .format(get_traceback(), E)))
+            raise E
+        finally:
+            self.status('Beginning test cleanup. Last Status msg:"{0}"...'
+                        .format(self.last_status_msg))
+            if clean:
+                if gws:
+                    user.ec2.boto3.client.delete_nat_gateways(gws)
+                for subnet in subnets:
+                    self.status('Attempting to delete subnet and dependency artifacts from '
+                                'this test')
+                    user.ec2.delete_subnet_and_dependency_artifacts(subnet)
+                for eip in eips:
+                    eip.delete()
+        self.status('test and cleanup complete')
 
     def test8s0_nat_gw_private_and_public_subnet_packet_type_test(self):
         """
