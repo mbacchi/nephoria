@@ -1627,7 +1627,7 @@ disable_root: false"""
         if dry_run:
             params['DryRun'] = 'true'
 
-        resp = self.boto3.client.create_route(params)
+        resp = self.boto3.client.create_route(**params)
 
         routes = self.get_routes_from_route_table(
             route_table=route_table_id, destination_cidr_block=destination_cidr_block,

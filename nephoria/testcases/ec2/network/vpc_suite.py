@@ -5372,9 +5372,12 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test and cleanup complete')
 
-        raise SkipTestException('Test Not Completed at this time')
 
     def test8t1_nat_gw_multiple_nat_gw_packet_test(self, clean=None):
+        raise SkipTestException('Test Not Completed at this time')
+
+
+
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
@@ -5397,8 +5400,24 @@ class VpcSuite(CliTestRunner):
                 user.e2.show_nat_gateway(natgw)
                 self.status('Created First NatGateway:{0}'.format(gwid))
 
+        except Exception as E:
+            self.log.error(red('{0}\nError during test:{1}}'
+                               .format(get_traceback(), E)))
+            raise E
+        finally:
+            self.status('Beginning test cleanup. Last Status msg:"{0}"...'
+                        .format(self.last_status_msg))
+            if clean:
+                if gws:
+                    user.ec2.boto3.client.delete_nat_gateways(gws)
+                for subnet in subnets:
+                    self.status('Attempting to delete subnet and dependency artifacts from '
+                                'this test')
+                    user.ec2.delete_subnet_and_dependency_artifacts(subnet)
+                for eip in eips:
+                    eip.delete()
+        self.status('test and cleanup complete')
 
-        raise SkipTestException('Test Not Completed at this time')
 
 
     def test8x0_nat_gw_max_gw_per_zone_limit(self, clean=None):

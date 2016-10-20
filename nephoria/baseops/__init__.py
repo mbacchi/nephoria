@@ -201,7 +201,6 @@ class BaseOps(object):
     def show_connection_kwargs(self, connection_kwargs=None, level='debug'):
         if connection_kwargs is None:
             connection_kwargs = self._connection_kwargs
-        print connection_kwargs
         debug_buf = 'Current "{0}" connection kwargs for\n'.format(self.__class__.__name__)
         for key, value in connection_kwargs.iteritems():
             debug_buf += "{0}{1}{2}\n".format(str(key).ljust(30), " -> ", value)
