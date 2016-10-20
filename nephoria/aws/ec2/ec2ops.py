@@ -1152,6 +1152,9 @@ disable_root: false"""
         ret_dict = {}
         if not isinstance(vpc, basestring):
             vpc = vpc.id
+        self.log.debug('Attempting to gather: nat gateways')
+        ret_dict['nat_gateways'] = [x.get('NatGatewayId') for x in
+                                    self.boto3.client.describe_nat_gateways().get('NatGateways')]
         self.log.debug('Attempting to gather: instances ')
         ret_dict['instances'] = self.get_instances(filters={'vpc_id': vpc})
         self.log.debug('Attempting to gather: subnets')
@@ -1200,6 +1203,9 @@ disable_root: false"""
         if verbose:
             pt = self.show_vpc_dependency_artifacts(vpc, printme=False)
             self.log.info('Attempting to delete VPC artifacts...\n{0}\n'.format(pt))
+        if deps['nat_gateways']:
+            self.log.debug('Attempting to delete nat_gateways')
+            self.delete_nat_gateways(deps['nat_gateways'])
         if deps['instances']:
             self.log.debug('Attempting to delete vpc instances')
             self.terminate_instances(deps['instances'])
@@ -1621,7 +1627,7 @@ disable_root: false"""
         if dry_run:
             params['DryRun'] = 'true'
 
-        status = self.connection.get_status('CreateRoute', params)
+        resp = self.boto3.client.create_route(params)
 
         routes = self.get_routes_from_route_table(
             route_table=route_table_id, destination_cidr_block=destination_cidr_block,
@@ -1630,7 +1636,8 @@ disable_root: false"""
         if not routes:
             raise ValueError('Newly added route for cidr:{0} not found in route table:{1} '
                              'response. Resp Status:{2}'
-                             .format(destination_cidr_block, route_table_id, status))
+                             .format(destination_cidr_block, route_table_id,
+                                     getattr(resp, 'status', '??')))
         if len(routes) != 1:
             self.show_route_table(route_table_id)
             raise ValueError('Multiple:{0} routes found for same destination cidr:{1} in route'
@@ -4821,12 +4828,11 @@ disable_root: false"""
         return None
 
 
-    def show_nat_gateways(self, gws=None, printmethod=None, n_len=30, i_len=70, printme=True):
+    def show_nat_gateways(self, gws=None, printmethod=None, table_len=100, printme=True):
         gws = gws or self.get_nat_gateways()
         if not isinstance(gws, list):
             gws = [gws]
-        n_hdr = 'NATGW'.ljust(n_len)
-        i_hdr = 'IPINFO'.ljust(i_len)
+        n_hdr = 'NATGW'.ljust(table_len)
         buf = ""
         for gw in gws:
             gw = copy.copy(gw)
@@ -4836,19 +4842,16 @@ disable_root: false"""
                 self.log.warning('Nat Gateway no found for:"{0}"'.format(gw))
                 continue
             id = gw.pop('NatGatewayId')
-            create_time = gw.pop('CreateTime')
-            header_pt = PrettyTable(["{0}    CreateTime: {1}"
-                                    .format(markup("NatGateWayID: {0}".format(id),
-                                                   markups=[TextStyle.BOLD,
-                                                            BackGroundColor.BG_WHITE,
-                                                            ForegroundColor.BLUE]), create_time)])
+            header_pt = PrettyTable(["{0}".format(markup("NatGateWayID: {0}".format(id),
+                                                         markups=[TextStyle.BOLD,
+                                                                  BackGroundColor.BG_WHITE,
+                                                                  ForegroundColor.BLUE]))])
             header_pt.align = 'l'
-            main_pt = PrettyTable([n_hdr, i_hdr])
+            main_pt = PrettyTable([n_hdr])
             main_pt.align = 'l'
             main_pt.border = False
-            main_pt.max_width[n_hdr] = n_len
-            main_pt.max_width[i_hdr] = i_len
-            main_pt.padding_width = 0
+            main_pt.max_width[n_hdr] = table_len - 3
+            main_pt.padding_width = 1
             main_pt.header = False
             nat_pt = PrettyTable(['key', 'value'])
             nat_pt.align = 'l'
@@ -4861,7 +4864,7 @@ disable_root: false"""
                 headers = [markup(x, TextStyle.UNDERLINE) for x in addrs[0].keys()]
                 ip_pt = PrettyTable(headers)
                 for h in headers:
-                    ip_pt.max_width[h] = i_len / 4
+                    ip_pt.max_width[h] = table_len / 4
                 ip_pt.padding_width = 1
                 ip_pt.align = 'l'
                 ip_pt.border = False
@@ -4869,12 +4872,16 @@ disable_root: false"""
                 ip_pt.hrules = 0
                 for addr in addrs:
                     ip_pt.add_row(addr.values())
+            else:
+                ip_pt = addrs
+            ip_pt = "{0}\n".format(ip_pt)
+            nat_pt.add_row(["{0}: ".format(markup('NatGatewayAddresses',
+                                                  markups=[TextStyle.BOLD,
+                                                           TextStyle.UNDERLINE])), ip_pt])
             for key, value in gw.iteritems():
-                nat_pt.add_row(["{0}: ".format(markup(key,
-                                                      markups=[TextStyle.BOLD,
-                                                               TextStyle.UNDERLINE])),
-                                value])
-            main_pt.add_row([nat_pt, ip_pt])
+                nat_pt.add_row(["{0}: ".format(markup(key, markups=[TextStyle.BOLD,
+                                                                    TextStyle.UNDERLINE])), value])
+            main_pt.add_row([nat_pt])
             header_pt.add_row([main_pt])
             buf += "\n{0}\n\n".format(header_pt)
         if not printme:
@@ -4897,7 +4904,7 @@ disable_root: false"""
             desired_state: string representing the desired state of the GWs. Default is 'deleted'.
             failed_states: list of strings representing the states to error upon.
                            If 'None', the default used is: ['pending', 'failed', 'available']
-        Raises: Runtime Error for failed gws. 
+        Raises: Runtime Error for failed gws.
 
         """
         if failed_states is None:
@@ -4941,7 +4948,7 @@ disable_root: false"""
                     else:
                         failed[gw] = str(E)
         for gw in remove:
-            gws_ids.pop(gw)
+            gws_ids.remove(gw)
         if timeout:
             start = time.time()
             elapsed = 0
@@ -4954,7 +4961,7 @@ disable_root: false"""
                         try:
                             gw = self.get_nat_gateway(gw)
                         except ClientError as E:
-                            checklist.pop(gw_id)
+                            checklist.remove(gw_id)
                             status = E.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
                             if re.search('NatGatewayNotFound', E.message) and status == 400:
                                 self.log.debug(
@@ -4964,9 +4971,9 @@ disable_root: false"""
                                 failed[gw_id] = str(E)
                         else:
                             if in_desired_state(gw):
-                                checklist.pop(gw_id)
+                                checklist.remove(gw_id)
                             elif in_failed_state(gw):
-                                checklist.pop(gw_id)
+                                checklist.remove(gw_id)
                                 failed[gw] = "Gateway:{0} in defined failed state:{1}"\
                                     .format(gw_id, gw.get('State'))
                             else:
@@ -4987,14 +4994,6 @@ disable_root: false"""
                 failmsg += "NAT GW:{0}, ERROR:{1}\n".format(gwid, msg)
             self.log.error(failmsg)
             raise RuntimeError(failmsg)
-
-
-
-
-
-
-
-
 
 
     def wait_for_instances_block_dev_mapping(self,

@@ -521,7 +521,7 @@ class VpcSuite(CliTestRunner):
         user = user or self.user
         existing = user.ec2.get_all_vpcs(filters={'tag-key': self.my_tag_name})
         if len(existing) >= count:
-            return existing[0:count]
+            return existing[0: count]
         needed = count - len(existing)
         new_vpcs = self.create_test_vpcs(count=needed, create_igw_per_vpc=1, user=user)
         ret_list = existing + new_vpcs
@@ -5316,7 +5316,7 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test and cleanup complete')
 
-    def test8s0_nat_gw_private_and_public_subnet_packet_type_test(self):
+    def test8s0_nat_gw_private_and_public_subnet_packet_type_test(self, clean=None):
         """
         A NAT gateway supports the following protocols: TCP, UDP, and ICMP.
         The instances in the public subnet can receive inbound traffic directly from the
@@ -5326,9 +5326,78 @@ class VpcSuite(CliTestRunner):
         the Internet by using a network address translation (NAT) gateway that resides in
         the public subnet.
         """
+        if clean is None:
+            clean = not self.args.no_clean
+        user = self.user
+        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        subnets = []
+        eips = []
+        gws = []
+
+        try:
+            self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
+            for zone in self.zones:
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnets.append(subnet)
+                eip = user.ec2.allocate_address()
+                eips.append(eip)
+                self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
+                gwid = natgw.get('NatGatewayId')
+                gws.append(gwid)
+                user.e2.show_nat_gateway(natgw)
+                self.status('Created First NatGateway:{0}'.format(gwid))
+                rt = user.ec2.connection.create_route_table(subnet.vpc_id)
+                user.ec2.connection.associate_route_table(rt.id, subnet.id)
+                user.ec2.create_route(self, route_table_id=rt.id,
+                                      destination_cidr_block='0.0.0.0/0', gateway_id=gwid,
+                                      natgateway_id=gwid)
+                self.status('Launching ')
+
+        except Exception as E:
+            self.log.error(red('{0}\nError during test:{1}}'
+                               .format(get_traceback(), E)))
+            raise E
+        finally:
+            self.status('Beginning test cleanup. Last Status msg:"{0}"...'
+                        .format(self.last_status_msg))
+            if clean:
+                if gws:
+                    user.ec2.boto3.client.delete_nat_gateways(gws)
+                for subnet in subnets:
+                    self.status('Attempting to delete subnet and dependency artifacts from '
+                                'this test')
+                    user.ec2.delete_subnet_and_dependency_artifacts(subnet)
+                for eip in eips:
+                    eip.delete()
+        self.status('test and cleanup complete')
+
         raise SkipTestException('Test Not Completed at this time')
 
-    def test8t1_nat_gw_multiple_nat_gw_packet_test(self):
+    def test8t1_nat_gw_multiple_nat_gw_packet_test(self, clean=None):
+        if clean is None:
+            clean = not self.args.no_clean
+        user = self.user
+        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        subnets = []
+        eips = []
+        gws = []
+
+        try:
+            self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
+            for zone in self.zones:
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnets.append(subnet)
+                eip = user.ec2.allocate_address()
+                eips.append(eip)
+                self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
+                natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
+                gwid = natgw.get('NatGatewayId')
+                gws.append(gwid)
+                user.e2.show_nat_gateway(natgw)
+                self.status('Created First NatGateway:{0}'.format(gwid))
+
+
         raise SkipTestException('Test Not Completed at this time')
 
 
