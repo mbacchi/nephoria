@@ -624,8 +624,8 @@ class VpcSuite(CliTestRunner):
     @printinfo
     def get_test_instances(self, zone, group_id, vpc_id=None, subnet_id=None,
                            state='running', count=None, monitor_to_running=True,
-                           instance_type=None, auto_connect=True, timeout=480, user=None,
-                           exclude=None):
+                           private_addressing=False, instance_type=None, auto_connect=True,
+                           timeout=480, user=None, exclude=None):
         """
         Finds existing instances created by this test which match the criteria provided,
         or creates new ones to meet the count requested.
@@ -653,6 +653,8 @@ class VpcSuite(CliTestRunner):
                              .format(zone, group_id))
         existing_instances = []
         exclude_instances = []
+        if private_addressing:
+            auto_connect = False
         if exclude:
             if not isinstance(exclude, list):
                 exclude = [exclude]
@@ -683,6 +685,8 @@ class VpcSuite(CliTestRunner):
         queried_instances = user.ec2.get_instances(filters=filters)
         self.log.debug('queried_instances:{0}'.format(queried_instances))
         for q_instance in queried_instances:
+            if private_addressing and q_instance.ip_address:
+                continue
             if (q_instance.state in ['pending', 'running'] and
                         q_instance.id not in exclude_instances):
                 for instance in user.ec2.test_resources.get('instances'):
@@ -724,6 +728,7 @@ class VpcSuite(CliTestRunner):
                                                  subnet=subnet_id, count=needed,
                                                  monitor_to_running=monitor_to_running,
                                                  auto_connect = auto_connect,
+                                                 private_addressing=private_addressing,
                                                  user=user)
             instances.extend(new_ins)
             if len(instances) != count:
@@ -734,7 +739,8 @@ class VpcSuite(CliTestRunner):
     @printinfo
     def create_test_instances(self, emi=None, key=None, group=None, zone=None, subnet=None,
                               count=1, monitor_to_running=True, auto_connect=True, tag=True,
-                              network_interface_collection=None, vmtype='m1.small', user=None):
+                              private_addressing=False, network_interface_collection=None,
+                              vmtype='m1.small', user=None):
         """
         Creates test instances using the criteria provided. This method is intended to be
         called from 'get_test_instances()'.
@@ -789,6 +795,7 @@ class VpcSuite(CliTestRunner):
                                        auto_connect=auto_connect,
                                        monitor_to_running=False,
                                        network_interfaces=network_interface_collection,
+                                       private_addressing=private_addressing,
                                        vmtype=vmtype,
                                        systemconnection=self.tc.sysadmin)
         for instance in instances:
@@ -5316,7 +5323,8 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test and cleanup complete')
 
-    def test8s0_nat_gw_private_and_public_subnet_packet_type_test(self, clean=None):
+    def test8s0_nat_gw_private_and_public_subnet_packet_type_test(self, host_machine=None,
+                                                                  non_nat_host=None, clean=None):
         """
         A NAT gateway supports the following protocols: TCP, UDP, and ICMP.
         The instances in the public subnet can receive inbound traffic directly from the
@@ -5325,6 +5333,14 @@ class VpcSuite(CliTestRunner):
         in the private subnet can't. Instead, the instances in the private subnet can access
         the Internet by using a network address translation (NAT) gateway that resides in
         the public subnet.
+        - Create a subnet, route table, and NAT GW per zone
+        - Create a default route through an associated Internet Gateway and a specific route to a
+          a remote test host through the NAT GW. This host defaults to the UFS machine.
+        - Creates a VM within the subnet and runs several packet tests using ICMP, TCP and UDP.
+        - The source address of packets from the VM are verified to be the NAT GW's public ip
+        - The source address of packets from the remote host are verified to be it's own.
+        - The source address of packets sent from the VM to hosts not routed to through the NATGW
+          are verified to the VM's own IP. 
         """
         if clean is None:
             clean = not self.args.no_clean
@@ -5333,26 +5349,128 @@ class VpcSuite(CliTestRunner):
         subnets = []
         eips = []
         gws = []
-
+        host = host_machine or self.tc.sysadmin.get_hosts_for_ufs()[0]
+        no_nat = non_nat_host
+        if not no_nat:
+            clc = self.tc.sysadmin.clc_machine
+            if clc.hostname != host.hostname:
+                no_nat = clc
+            else:
+                nc = self.tc.sysadmin.get_hosts_for_node_controllers()[0]
+                if nc.hostname != host.hostname:
+                    no_nat = nc
+                else:
+                    self.log.warning('A separate host for the no NAT GW case could not be found, '
+                                     'and none were provided to this test. These tests will '
+                                     'be skipped')
+        group = self.get_test_security_groups(vpc=vpc, rules=[('tcp', 22, 22, '0.0.0.0/0'),
+                                                              ('tcp', 100, 101, '0.0.0.0/0'),
+                                                              ('icmp', -1, -1, '0.0.0.0/0'),
+                                                              ('udp', 100, 101, '0.0.0.0/0')])[0]
         try:
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
-                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
+                subnet = self.create_test_subnets(vpc=vpc, zones=[zone],
+                                                      user=user, count_per_zone=2)
                 subnets.append(subnet)
+                rt = user.ec2.connection.create_route_table(subnet.vpc_id)
+                user.ec2.connection.associate_route_table(rt.id, subnet.id)
+                igw = user.ec2.connection.get_all_internet_gateways(
+                    filters={'attachment.vpc-id': vpc.id})
+                user.ec2.create_route(rt.id, '0.0.0.0/0', gateway_id=igw.id)
                 eip = user.ec2.allocate_address()
                 eips.append(eip)
                 self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
                 natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
                 gwid = natgw.get('NatGatewayId')
+                gw_ips = ",".join([x.get('PublicIp') for x in gw.get('NatGatewayAddresses')])
                 gws.append(gwid)
                 user.e2.show_nat_gateway(natgw)
                 self.status('Created First NatGateway:{0}'.format(gwid))
-                rt = user.ec2.connection.create_route_table(subnet.vpc_id)
-                user.ec2.connection.associate_route_table(rt.id, subnet.id)
+                self.status('Adding route to testhost:{0} through natgway:{1}'
+                            .format(host.hostname, gwid))
                 user.ec2.create_route(self, route_table_id=rt.id,
-                                      destination_cidr_block='0.0.0.0/0', gateway_id=gwid,
+                                      destination_cidr_block=host.hostname + "/32",
                                       natgateway_id=gwid)
-                self.status('Launching ')
+                self.status('Launching test VMs...')
+                vm = self.get_test_instances(zone='one', group_id=group.id, vpc_id=vpc.id,
+                                                 subnet_id=subnet.id, count=1,
+                                                 private_addressing=False)
+                self.status('Starting NAT GW packet tests between VM:{0} and remote host:{1}'
+                            .format(vm.id, host.hostname))
+
+                self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
+                            .format(vm.id, vm.private_ip_address, vm.ip_address, host.hostname))
+                packet_test(vm.ssh, host.ssh, protocol=1, count=2, dest_ip=host.hostname,
+                            src_addrs=gw_ips, verbose=True)
+                self.status('VM to host NATGW ICMP test passed')
+
+                self.status('Attempting VM:{0}:private{1}:public:{2} -- UDP port 100 -> {3}'
+                            .format(vm.id, vm.private_ip_address, vm.ip_address, host.hostname))
+                packet_test(vm.ssh, host.ssh, protocol=17, count=2, dest_ip=host.hostname, bind=True,
+                            port=100, src_addrs=gw_ips, verbose=True)
+                self.status('VM to host NATGW UDP test passed')
+
+                self.status('Attempting VM:{0}:private{1}:public:{2} --TCP port 101 -> {3}'
+                            .format(vm.id, vm.private_ip_address, vm.ip_address, host.hostname))
+                packet_test(vm.ssh, host.ssh, protocol=6, count=2, dest_ip=host.hostname, bind=True,
+                            port=101, src_addrs=gw_ips, verbose=True)
+                self.status('VM to host NATGW TCP test passed')
+
+                self.status('Attempting reverse direction VM:{0}:private{1}:public:{2} <--ICMP '
+                            '-- {3}'.format(vm.id, vm.private_ip_address,
+                                                   vm.ip_address, host.hostname))
+                packet_test(host.ssh, vm.ssh, protocol=1, count=2, dest_ip=vm.ip_address,
+                            src_addrs=host.hostname, verbose=True)
+                self.status('HOST to VM NATGW ICMP test passed')
+
+                self.status('Attempting reverse direction VM:{0}:private{1}:public:{2} <--UDP '
+                            'port100 -- {3}'.format(vm.id, vm.private_ip_address,
+                                                   vm.ip_address, host.hostname))
+                packet_test(host.ssh, vm.ssh, protocol=17, count=2, dest_ip=vm.ip_address,
+                            bind=True, port=100, src_addrs=host.hostname, verbose=True)
+                self.status('HOST to VM NATGW UDP test passed')
+
+                self.status('Attempting reverse direction VM:{0}:private{1}:public:{2} <--TCP '
+                            'port100 -- {3}'.format(vm.id, vm.private_ip_address,
+                                                   vm.ip_address, host.hostname))
+                packet_test(host.ssh, vm.ssh, protocol=6, count=2, dest_ip=vm.ip_address,
+                            bind=True, port=101, src_addrs=host.hostname, verbose=True)
+                self.status('HOST to VM NATGW TCP test passed')
+
+
+                if no_nat:
+                    host = no_nat
+                    vm_ip = vm.ip_address
+                    self.status('Starting non-NAT GW packet tests between VM:{0} and remote '
+                                'host:{1}'.format(vm.id, host.hostname))
+
+                    self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
+                                .format(vm.id, vm.private_ip_address, vm.ip_address,
+                                        host.hostname))
+                    packet_test(vm.ssh, host.ssh, protocol=1, count=2, dest_ip=host.hostname,
+                                src_addrs=vm_ip, verbose=True)
+                    self.status('VM to host NATGW ICMP test passed')
+
+                    self.status('Attempting VM:{0}:private{1}:public:{2} -- UDP port 100 -> {3}'
+                                .format(vm.id, vm.private_ip_address, vm.ip_address,
+                                        host.hostname))
+                    packet_test(vm.ssh, host.ssh, protocol=17, count=2, dest_ip=host.hostname,
+                                bind=True,
+                                port=100, src_addrs=vm_ip, verbose=True)
+                    self.status('VM to host NATGW UDP test passed')
+
+                    self.status('Attempting VM:{0}:private{1}:public:{2} --TCP port 101 -> {3}'
+                                .format(vm.id, vm.private_ip_address, vm.ip_address,
+                                        host.hostname))
+                    packet_test(vm.ssh, host.ssh, protocol=6, count=2, dest_ip=host.hostname,
+                                bind=True, port=101, src_addrs=vm_ip, verbose=True)
+                    self.status('VM to host NATGW TCP test passed')
+                else:
+                    self.log.warning('Skipping the "No NAT Gateway" cases because no 2nd host was '
+                                     'found or provided')
+
+                self.status('All NATGW packet tests for zone:{0} are complete'.format(zone))
 
         except Exception as E:
             self.log.error(red('{0}\nError during test:{1}}'
@@ -5374,29 +5492,25 @@ class VpcSuite(CliTestRunner):
 
 
     def test8t1_nat_gw_multiple_nat_gw_packet_test(self, clean=None):
-        raise SkipTestException('Test Not Completed at this time')
-
-
-
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
         vpc = self.test8b0_get_vpc_for_nat_gw_tests()
         subnets = []
         eips = []
-        gws = []
 
         try:
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
-                subnet = self.create_test_subnets(vpc=vpc, zones=[zone], user=user)
-                subnets.append(subnet)
+                testsubnet, proxysubnet = self.create_test_subnets(vpc=vpc, zones=[zone],
+                                                                   user=user, count_per_zone=2)
+                subnets.append(testsubnet)
+                subnets.append(proxysubnet)
                 eip = user.ec2.allocate_address()
                 eips.append(eip)
                 self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
-                natgw = user.ec2.create_nat_gateway(subnet, eip_allocation=eip.allocation_id)
+                natgw = user.ec2.create_nat_gateway(testsubnet, eip_allocation=eip.allocation_id)
                 gwid = natgw.get('NatGatewayId')
-                gws.append(gwid)
                 user.e2.show_nat_gateway(natgw)
                 self.status('Created First NatGateway:{0}'.format(gwid))
 
@@ -5408,8 +5522,6 @@ class VpcSuite(CliTestRunner):
             self.status('Beginning test cleanup. Last Status msg:"{0}"...'
                         .format(self.last_status_msg))
             if clean:
-                if gws:
-                    user.ec2.boto3.client.delete_nat_gateways(gws)
                 for subnet in subnets:
                     self.status('Attempting to delete subnet and dependency artifacts from '
                                 'this test')

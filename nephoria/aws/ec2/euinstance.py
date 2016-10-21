@@ -2661,6 +2661,9 @@ class EuInstance(Instance, TaggedResource, Machine):
                 if not api_is_good and eni.attachment and eni.attachment.instance_id == self.id:
                     raise ValueError('ENI:{0} attachment data still shows it is attached to this '
                                      'instance:{1}'.format(eni.id, eni.attachment.instance_id))
+                if not api_is_good and eni.status != 'available' and not eni.attachment:
+                    raise ValueError('ENI:{0} is no longer attached and eni.status:"{1}" != '
+                                     '"available"'.format(eni.id, eni.status))
                 if eni.id in [str(x.id) for x in self.interfaces]:
                     raise ValueError('ENI:{0} still present in self.interfaces'.format(eni.id))
                 api_is_good = True
