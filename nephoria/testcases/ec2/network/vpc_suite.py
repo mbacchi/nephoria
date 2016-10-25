@@ -5349,22 +5349,22 @@ class VpcSuite(CliTestRunner):
         subnets = []
         eips = []
         gws = []
-        host = host_machine or self.tc.sysadmin.get_hosts_for_ufs()[0]
+        natd_host = host_machine or self.tc.sysadmin.get_hosts_for_ufs()[0]
         no_nat = non_nat_host
         if not no_nat:
             clc = self.tc.sysadmin.clc_machine
-            if clc.hostname != host.hostname:
+            if clc.hostname != natd_host.hostname:
                 no_nat = clc
             else:
                 nc = self.tc.sysadmin.get_hosts_for_node_controllers()[0]
-                if nc.hostname != host.hostname:
+                if nc.hostname != natd_host.hostname:
                     no_nat = nc
                 else:
                     self.log.warning('A separate host for the no NAT GW case could not be found, '
                                      'and none were provided to this test. These tests will '
                                      'be skipped')
         self.status('Test will be using remote hosts: nat\'d traffic host:{0}, non-nat host:{1}'
-                    .format(host, no_nat))
+                    .format(natd_host, no_nat))
         group = self.get_test_security_groups(vpc=vpc, rules=[('tcp', 22, 22, '0.0.0.0/0'),
                                                               ('tcp', 100, 101, '0.0.0.0/0'),
                                                               ('icmp', -1, -1, '0.0.0.0/0'),
@@ -5384,7 +5384,10 @@ class VpcSuite(CliTestRunner):
                 else:
                     igw = user.ec2.connection.create_internet_gateway()
                     user.ec2.connection.attach_internet_gateway(igw.id, vpc.id)
-                user.ec2.create_route(rt.id, '0.0.0.0/0', gateway_id=igw.id)
+                igwroute = user.ec2.create_route(rt.id, '0.0.0.0/0', gateway_id=igw.id)
+                if not igwroute:
+                    raise RuntimeError('Failed to created route to host:{0} via "{1}"'
+                                       .format('0.0.0.0/0', igw.id))
                 eip = user.ec2.allocate_address()
                 eips.append(eip)
                 self.status('Creating the NATGW with EIP:{0}'.format(eip.public_ip))
@@ -5395,14 +5398,19 @@ class VpcSuite(CliTestRunner):
                 user.ec2.show_nat_gateways(natgw)
                 self.status('Created First NatGateway:{0}'.format(gwid))
                 self.status('Adding route to testhost:{0} through natgway:{1}'
-                            .format(host.hostname, gwid))
-                user.ec2.create_route(rt.id, host.hostname + "/32", natgateway_id=gwid)
+                            .format(natd_host.hostname, gwid))
+                route = user.ec2.create_route(rt.id, natd_host.hostname + "/32", natgateway_id=gwid)
+                if not route:
+                    raise RuntimeError('Failed to created route to host:{0} via "{1}"'
+                                       .format(host.hostname + "/32", gwid))
+                user.ec2.show_route_table(rt.id)
                 self.status('Launching test VMs...')
                 vm = self.get_test_instances(zone='one', group_id=group.id, vpc_id=vpc.id,
                                                  subnet_id=subnet.id, count=1,
                                                  private_addressing=False)[0]
 
                 ################# VM to REMOTE HOST THROUGH NAT GW - TESTS ##################
+                host = natd_host
                 self.status('Starting NAT GW packet tests between VM:{0} and remote host:{1}'
                             .format(vm.id, host.hostname))
                 self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
@@ -5473,6 +5481,57 @@ class VpcSuite(CliTestRunner):
                 else:
                     self.log.warning('Skipping the "No NAT Gateway" cases because no 2nd host was '
                                      'found or provided')
+                # Test after deleting the route via the NAT GW...
+                self.status('Deleting the NAT GW route and re-testing each packet type...')
+                user.ec2.connection.delete_route(rt.id, natd_host.hostname + "/32")
+                elapsed = 0
+                start = time.time()
+                attempt = 0
+                timeout = 40
+                good = False
+                TE = None
+                while not good and elapsed < timeout:
+                    attempt += 1
+                    elapsed = int(time.time() - start)
+                    try:
+                        self.status('Starting IGW packet tests between VM:{0} and remote host:{1}, '
+                                    'attempt:{2}, elapsed:{3}/{4}'
+                                    .format(vm.id, host.hostname, attempt, elapsed, timeout))
+                        self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
+                                    .format(vm.id, vm.private_ip_address, vm.ip_address,
+                                            host.hostname))
+                        packet_test(vm.ssh, host.ssh, protocol=1, count=2, dest_ip=host.hostname,
+                                    src_addrs=vm.ip_address, verbose=True)
+                        self.status('VM to host IGW ICMP test passed')
+
+                        self.status('Attempting VM:{0}:private{1}:public:{2} -- UDP port 100 -> {3}'
+                                    .format(vm.id, vm.private_ip_address, vm.ip_address,
+                                            host.hostname))
+                        packet_test(vm.ssh, host.ssh, protocol=17, count=2, dest_ip=host.hostname,
+                                    bind=True, port=100, src_addrs=vm.ip_address, verbose=True)
+                        self.status('VM to host IGW UDP test passed')
+
+                        self.status('Attempting VM:{0}:private{1}:public:{2} --TCP port 101 -> {3}'
+                                    .format(vm.id, vm.private_ip_address, vm.ip_address,
+                                            host.hostname))
+                        packet_test(vm.ssh, host.ssh, protocol=6, count=2, dest_ip=host.hostname,
+                                    bind=True, port=101, src_addrs=vm.ip_address, verbose=True)
+                        self.status('VM to host IGW TCP test passed')
+                        good = True
+                    except Exception as TE:
+                        self.log.debug('Failed attempt IGW packet tests between VM:{0} and remote '
+                                       'host:{1}, attempt:{2}, elapsed:{3}/{4}. Error:{5}'
+                                       .format(vm.id, host.hostname, attempt, elapsed, timeout,
+                                               TE))
+                        if elapsed < timeout:
+                            time.sleep(5)
+                if not good:
+                    if TE:
+                        raise TE
+                    else:
+                        raise RuntimeError('Failed packet tests after removing NATGW route, '
+                                           'but no error? Check the test?')
+
 
                 self.status('All NATGW packet tests for zone:{0} are complete'.format(zone))
 
