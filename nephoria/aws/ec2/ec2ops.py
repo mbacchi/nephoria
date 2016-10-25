@@ -1364,14 +1364,17 @@ disable_root: false"""
                                                                               type(route_table)))
         printmethod = printmethod or self.log.info
         table_width = 100
-        key_hdr_len =  12
+        key_hdr_len =  13
         value_hdr_len = table_width - key_hdr_len - 3
         key_hdr = 'key'.ljust(key_hdr_len)
         value_hdr = 'value'.ljust(value_hdr_len)
         # Create main table and add basic/single item entries first...
         pt = PrettyTable([key_hdr, value_hdr])
         pt.header = False
-        pt.align = 'l'
+        pt.align[key_hdr] = 'r'
+        pt.align[value_hdr] = 'l'
+        pt.left_padding_width = 0
+        pt.right_padding_width = 1
         pt.max_width[key_hdr] = key_hdr_len
         pt.max_width[value_hdr] = value_hdr_len
         pt.add_row(["ID:", markup(route_table.id, [TextStyle.BOLD]).ljust(value_hdr_len)])
@@ -1409,30 +1412,43 @@ disable_root: false"""
         # Add Route Entries in sub-table...
         route_pt = "(NONE)"
         if route_table.routes:
-            ip_len = 19
-            target_len = 22
-            ins_len = 11
-            state_len = 10
-            vpc_len = 13
-            route_pt = PrettyTable([markup('DEST', [TextStyle.BOLD,
-                                                    ForegroundColor.BLUE]).ljust(ip_len),
-                                    markup('Target GW', [TextStyle.BOLD,
-                                                    ForegroundColor.BLUE]).ljust(target_len),
-                                    markup('INSTANCE', [TextStyle.BOLD,
-                                                    ForegroundColor.BLUE]).ljust(ins_len),
-                                    markup('STATE', [TextStyle.BOLD,
-                                                    ForegroundColor.BLUE]).ljust(state_len),
-                                    markup('VPC_PEER', [TextStyle.BOLD,
-                                                    ForegroundColor.BLUE]).ljust(vpc_len)])
+            ip_len = 25
+            target_len = 20
+            ins_len = 20
+            vpc_len = 20
+            d_hdr = markup('DEST', [TextStyle.BOLD, ForegroundColor.BLUE]).ljust(ip_len)
+            t_hdr = markup('Target', [TextStyle.BOLD, ForegroundColor.BLUE]).ljust(target_len)
+            i_hdr = markup('INSTANCE', [TextStyle.BOLD, ForegroundColor.BLUE]).ljust(ins_len)
+            v_hdr = markup('VPC', [TextStyle.BOLD, ForegroundColor.BLUE]).ljust(vpc_len)
+
+            route_pt = PrettyTable([d_hdr, t_hdr, i_hdr, v_hdr])
+            route_pt.header = False
+            route_pt.hrules = 1
+            route_pt.max_width[d_hdr] = ip_len
+            route_pt.max_width[t_hdr] = target_len
+            route_pt.max_width[i_hdr] = ins_len
+            route_pt.max_width[v_hdr] = vpc_len
+            #route_pt.max_width[v_hdr] = vpc_len
             route_pt.align = 'l'
-            route_pt.padding_width = 1
+            route_pt.padding_width = 0
             for route in route_table.routes:
-                target = route.gateway_id or route.natgateway_id or route.interface_id
-                route_pt.add_row([str(route.destination_cidr_block).ljust(ip_len),
-                                  str(target).ljust(target_len),
-                                  str(route.instance_id).ljust(ins_len),
-                                  str(route.state).ljust(state_len),
-                                  str(route.vpc_peering_connection_id).ljust(vpc_len)])
+                dest = "{0}\n{1}".format(
+                    "DEST: {0}".format(route.destination_cidr_block).ljust(ip_len - 1),
+                    "STATE: {0}".format(route.state).ljust(ip_len - 1)
+                )
+                target = "{0}\n{1}".format(
+                    "GW ID:{0}".format(route.gateway_id).ljust(target_len - 1),
+                    "NAT GW:{0}".format(route.natgateway_id).ljust(target_len - 1),
+                )
+                origin_vpc = "{0}\n{1}".format(
+                    "VPC PEER: {0}".format(route.vpc_peering_connection_id).ljust(vpc_len - 1),
+                    "ORIGIN: {0}".format(route.origin).ljust(vpc_len - 1)
+                )
+                ins_eni = "{0}\n{1}".format(
+                    "INSTANCE: {0}".format(route.instance_id).ljust(ins_len - 1),
+                    "ENI: {0}".format(route.interface_id).ljust(ins_len - 1)
+                )
+                route_pt.add_row([dest, target, ins_eni, origin_vpc])
         route_pt = "\n".join(str(x).strip('|')
                              for x in str(route_pt).translate(string.maketrans("", "", ),
                                                               '+|').splitlines())
