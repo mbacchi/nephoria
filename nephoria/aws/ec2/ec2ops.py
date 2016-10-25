@@ -1088,6 +1088,8 @@ disable_root: false"""
         ret_dict = {}
         if not isinstance(subnet, basestring):
             subnet = subnet.id
+        gws = self.get_nat_gateways(subnet=subnet) or []
+        ret_dict['nat_gateways'] = [x.get('NatGatewayId') for x in gws]
         ret_dict['route_tables'] = self.connection.get_all_route_tables(
             filters={'association.subnet-id': subnet})
         ret_dict['enis'] = self.connection.get_all_network_interfaces(
@@ -1117,6 +1119,8 @@ disable_root: false"""
         if verbose:
             pt = self.show_subnet_dependency_artifacts(subnet, printme=False)
             self.log.info('Attempting to delete SUBNET artifacts...\n{0}\n'.format(pt))
+        if deps['nat_gateways']:
+            self.delete_nat_gateways(gateways=deps['nat_gateways'])
         if deps['instances']:
             self.log.debug('Attempting to delete vpc instances')
             self.terminate_instances(deps['instances'])
@@ -4716,6 +4720,8 @@ disable_root: false"""
         eip_allocation = eip_allocation or self.allocate_address()
         if not isinstance(eip_allocation, basestring):
             allocation_id = eip_allocation.allocation_id
+        else:
+            allocation_id = eip_allocation
         if failed_states is None:
             failed_states = ['failed']
         if not isinstance(failed_states, list):
@@ -4753,7 +4759,7 @@ disable_root: false"""
                                    'seconds'.format(id, state, desired_state, elapsed, timeout))
         return gw
 
-    def get_nat_gateways(self, id_list=None, state=None, subnet=None, vpc=None,
+    def get_nat_gateways(self, id_list=None, state=None, subnet=None, vpc=None, zone=None,
                          max_results=1000):
         """
         Fetch Nat Gateways with the provided filters.
@@ -4780,6 +4786,9 @@ disable_root: false"""
             )
         Returns: List of Nat Gateways
         """
+        if zone and state != 'available':
+            raise ValueError('Can only sort NAT GWs by Zone if state is "available", '
+                             'got state:{0}'.format(state))
         kwargs = {'MaxResults': max_results}
         filters = []
         natgw_ids = []
@@ -4810,7 +4819,23 @@ disable_root: false"""
             kwargs['Filter'] = filters
         self.log.debug('describe_nat_gateways({0})'.format(kwargs))
         response = self.boto3.client.describe_nat_gateways(**kwargs)
-        return response.get('NatGateways', [])
+        gws = response.get('NatGateways', [])
+        if not zone:
+            return gws
+        else:
+            ret = []
+            for gw in gws:
+                try:
+                    gw_sub = self.get_subnet(gw.get('SubnetId'))
+                    if gw_sub.availability_zone == zone:
+                        ret.append(gw)
+                except Exception as SE:
+                    self.log.error('{0}\nError fetching zone from NAT GWs subnet for:{1}'
+                                   .format(get_traceback(), gw.get('NatGatewayId')))
+                    self.show_nat_gateways(gw)
+                    raise SE
+            return ret
+
 
     def get_nat_gateway(self, natgw):
         if natgw:
@@ -4911,6 +4936,7 @@ disable_root: false"""
             failed_states = ['pending', 'failed', 'available']
         gws_ids = []
         if not gateways:
+            self.log.warning('No gateways provided to delete')
             return
         if not isinstance(gateways, list):
             gateways = [gateways]
