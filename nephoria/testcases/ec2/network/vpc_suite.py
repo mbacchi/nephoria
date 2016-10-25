@@ -5340,6 +5340,8 @@ class VpcSuite(CliTestRunner):
         - The source address of packets from the remote host are verified to be it's own.
         - The source address of packets sent from the VM to hosts not routed to through the NATGW
           are verified to the VM's own IP.
+        - Remove the route via NATGW test that packets are relieved at the previously nat'd
+          destination with the VM's public IP as the source address.
         """
         self.status('Starting nat gw basic packet type tests... ')
         if clean is None:
@@ -5413,19 +5415,22 @@ class VpcSuite(CliTestRunner):
                 host = natd_host
                 self.status('Starting NAT GW packet tests between VM:{0} and remote host:{1}'
                             .format(vm.id, host.hostname))
-                self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
+                self.status('Natd destination. Attempting VM:{0}:private{1}:public:{2} -- '
+                            'ICMP -> {3}'
                             .format(vm.id, vm.private_ip_address, vm.ip_address, host.hostname))
                 packet_test(vm.ssh, host.ssh, protocol=1, count=2, dest_ip=host.hostname,
                             src_addrs=gw_ips, verbose=True)
                 self.status('VM to host NATGW ICMP test passed')
 
-                self.status('Attempting VM:{0}:private{1}:public:{2} -- UDP port 100 -> {3}'
+                self.status('Natd destination. Attempting VM:{0}:private{1}:public:{2} -- '
+                            'UDP port 100 -> {3}'
                             .format(vm.id, vm.private_ip_address, vm.ip_address, host.hostname))
                 packet_test(vm.ssh, host.ssh, protocol=17, count=2, dest_ip=host.hostname,
                             bind=True, port=100, src_addrs=gw_ips, verbose=True)
                 self.status('VM to host NATGW UDP test passed')
 
-                self.status('Attempting VM:{0}:private{1}:public:{2} --TCP port 101 -> {3}'
+                self.status('Natd destination. Attempting VM:{0}:private{1}:public:{2} -- '
+                            'TCP port 101 -> {3}'
                             .format(vm.id, vm.private_ip_address, vm.ip_address, host.hostname))
                 packet_test(vm.ssh, host.ssh, protocol=6, count=2, dest_ip=host.hostname,
                             bind=True, port=101, src_addrs=gw_ips, verbose=True)
@@ -5434,14 +5439,16 @@ class VpcSuite(CliTestRunner):
                 ################# REMOTE HOST TO VM - TESTS ###################################
                 ### Skip TCP, TCP may not work in this scenario due to asymmetric path?
 
-                self.status('Attempting reverse direction VM:{0}:private{1}:public:{2} <--ICMP '
+                self.status('Remost host to VM. Attempting reverse direction VM:{0}:private{1}:'
+                            'public:{2} <--ICMP '
                             '-- {3}'.format(vm.id, vm.private_ip_address,
                                                    vm.ip_address, host.hostname))
                 packet_test(host.ssh, vm.ssh, protocol=1, count=2, dest_ip=vm.ip_address,
                             verbose=True)
                 self.status('HOST to VM NATGW ICMP test passed')
 
-                self.status('Attempting reverse direction VM:{0}:private{1}:public:{2} <--UDP '
+                self.status('Remost host to VM. Attempting reverse direction VM:{0}:private{1}:'
+                            'public:{2} <--UDP '
                             'port100 -- {3}'.format(vm.id, vm.private_ip_address,
                                                    vm.ip_address, host.hostname))
                 packet_test(host.ssh, vm.ssh, protocol=17, count=2, dest_ip=vm.ip_address,
@@ -5457,14 +5464,16 @@ class VpcSuite(CliTestRunner):
                     self.status('Starting non-NAT GW packet tests between VM:{0} and remote '
                                 'host:{1}'.format(vm.id, host.hostname))
 
-                    self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
+                    self.status('Non natd destination. Attempting VM:{0}:private{1}:public:'
+                                '{2} -- ICMP -> {3}'
                                 .format(vm.id, vm.private_ip_address, vm.ip_address,
                                         host.hostname))
                     packet_test(vm.ssh, host.ssh, protocol=1, count=2, dest_ip=host.hostname,
                                 src_addrs=vm_ip, verbose=True)
                     self.status('VM to host NATGW ICMP test passed')
 
-                    self.status('Attempting VM:{0}:private{1}:public:{2} -- UDP port 100 -> {3}'
+                    self.status('Non natd destination. Attempting VM:{0}:private{1}:public:'
+                                '{2} -- UDP port 100 -> {3}'
                                 .format(vm.id, vm.private_ip_address, vm.ip_address,
                                         host.hostname))
                     packet_test(vm.ssh, host.ssh, protocol=17, count=2, dest_ip=host.hostname,
@@ -5472,7 +5481,8 @@ class VpcSuite(CliTestRunner):
                                 port=100, src_addrs=vm_ip, verbose=True)
                     self.status('VM to host NATGW UDP test passed')
 
-                    self.status('Attempting VM:{0}:private{1}:public:{2} --TCP port 101 -> {3}'
+                    self.status('Non natd destination. Attempting VM:{0}:private{1}:public:'
+                                '{2} --TCP port 101 -> {3}'
                                 .format(vm.id, vm.private_ip_address, vm.ip_address,
                                         host.hostname))
                     packet_test(vm.ssh, host.ssh, protocol=6, count=2, dest_ip=host.hostname,
@@ -5484,6 +5494,7 @@ class VpcSuite(CliTestRunner):
                 # Test after deleting the route via the NAT GW...
                 self.status('Deleting the NAT GW route and re-testing each packet type...')
                 user.ec2.connection.delete_route(rt.id, natd_host.hostname + "/32")
+                host = natd_host
                 elapsed = 0
                 start = time.time()
                 attempt = 0
@@ -5497,21 +5508,24 @@ class VpcSuite(CliTestRunner):
                         self.status('Starting IGW packet tests between VM:{0} and remote host:{1}, '
                                     'attempt:{2}, elapsed:{3}/{4}'
                                     .format(vm.id, host.hostname, attempt, elapsed, timeout))
-                        self.status('Attempting VM:{0}:private{1}:public:{2} -- ICMP -> {3}'
+                        self.status('Post nat route deletion. Attempting VM:{0}:private{1}:'
+                                    'public:{2} -- ICMP -> {3}'
                                     .format(vm.id, vm.private_ip_address, vm.ip_address,
                                             host.hostname))
                         packet_test(vm.ssh, host.ssh, protocol=1, count=2, dest_ip=host.hostname,
                                     src_addrs=vm.ip_address, verbose=True)
                         self.status('VM to host IGW ICMP test passed')
 
-                        self.status('Attempting VM:{0}:private{1}:public:{2} -- UDP port 100 -> {3}'
+                        self.status('Post nat route deletion. Attempting VM:{0}:private{1}:'
+                                    'public:{2} -- UDP port 100 -> {3}'
                                     .format(vm.id, vm.private_ip_address, vm.ip_address,
                                             host.hostname))
                         packet_test(vm.ssh, host.ssh, protocol=17, count=2, dest_ip=host.hostname,
                                     bind=True, port=100, src_addrs=vm.ip_address, verbose=True)
                         self.status('VM to host IGW UDP test passed')
 
-                        self.status('Attempting VM:{0}:private{1}:public:{2} --TCP port 101 -> {3}'
+                        self.status('Post nat route deletion. Attempting VM:{0}:private{1}:'
+                                    'public:{2} --TCP port 101 -> {3}'
                                     .format(vm.id, vm.private_ip_address, vm.ip_address,
                                             host.hostname))
                         packet_test(vm.ssh, host.ssh, protocol=6, count=2, dest_ip=host.hostname,
