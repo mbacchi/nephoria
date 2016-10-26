@@ -435,7 +435,7 @@ class VpcSuite(CliTestRunner):
             net_octet = 1 + (250 % len(user.ec2.get_all_vpcs()))
             new_vpc = user.ec2.connection.create_vpc(cidr_block='{0}.{1}.0.0/16'
                                                      .format(starting_octet, net_octet))
-            user.ec2.create_tags(new_vpc.id, {self.my_tag_name: count})
+            user.ec2.create_tags(new_vpc.id, {self.my_tag_name: self.id})
             test_vpcs.append(new_vpc)
             if create_igw_per_vpc:
                 gw = user.ec2.connection.create_internet_gateway()
@@ -523,7 +523,8 @@ class VpcSuite(CliTestRunner):
         :return: list of VPC boto objects
         """
         user = user or self.user
-        existing = user.ec2.get_all_vpcs(filters={'tag-key': self.my_tag_name})
+        existing = user.ec2.get_all_vpcs(filters={'tag-key': self.my_tag_name,
+                                                  'tag-value': self.id})
         if len(existing) >= count:
             return existing[0: count]
         needed = count - len(existing)
@@ -5724,13 +5725,35 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
 
     def clean_method(self):
+        errors = []
         if not self.args.no_clean:
-            self.user.ec2.clean_all_test_resources()
-            if self.new_ephemeral_user and self.new_ephemeral_user != self.user:
-                self.log.debug('deleting new user account:"{0}"'
-                           .format(self.new_ephemeral_user.account_name))
-                self.tc.admin.iam.delete_account(account_name=self.new_ephemeral_user.account_name,
-                                                 recursive=True)
+            users = []
+            if self.user:
+                users.append(self.user)
+            if (self.new_ephemeral_user and
+                    (self.new_ephemeral_user.aws_access_key != self.user.aws_access_key)):
+                users.append(self.new_ephemeral_user)
+            for user in users:
+                try:
+                    vpcs = user.ec2.get_all_vpcs(filters={'tag-key': self.my_tag_name,
+                                                          'tag-value': self.id})
+                    for vpc in vpcs:
+                        user.ec2.delete_vpc_and_dependency_artifacts(vpc)
+                    key = self.get_keypair(user)
+                    if key:
+                        user.ec2.delete_keypair(key)
+                except Exception as E:
+                    errors.append('ERROR #{0}:\n{1}\n{2}'.format(len(errors), get_traceback(), E))
+            try:
+                if self.new_ephemeral_user and self.new_ephemeral_user != self.user:
+                    self.log.debug('deleting new user account:"{0}"'
+                               .format(self.new_ephemeral_user.account_name))
+                    self.tc.admin.iam.delete_account(
+                        account_name=self.new_ephemeral_user.account_name, recursive=True)
+            except Exception as E:
+                errors.append('ERROR #{0}:\n{1}\n{2}'.format(len(errors), get_traceback(), E))
+        if errors:
+            raise RuntimeError('Errors during test clean up:\n{0}'.format("\n".join(errors)))
 
 
     ###############################################################################################

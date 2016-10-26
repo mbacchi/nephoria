@@ -1205,6 +1205,7 @@ disable_root: false"""
         if not isinstance(vpc, basestring):
             vpc = vpc.id
         deps = self.get_vpc_dependency_artifacts(vpc=vpc)
+        gws = self.get_nat_gateways()
         if verbose:
             pt = self.show_vpc_dependency_artifacts(vpc, printme=False)
             self.log.info('Attempting to delete VPC artifacts...\n{0}\n'.format(pt))
@@ -1217,7 +1218,26 @@ disable_root: false"""
         if deps['enis']:
             self.log.debug('Attempting to delete vpc enis')
             for eni in deps['enis']:
-                eni.delete()
+                start = time.time()
+                elapsed = 0
+                timeout = 300
+                while elapsed < timeout:
+                    elapsed = int(time.time() - start)
+                    try:
+                        eni.update()
+                        eni.delete()
+                    except Exception as E:
+                        self.log.error(red('Failed to delete ENI after elapsed:{0}/{1}...'
+                                           'dumping info'.format(elapsed, timeout)))
+                        for gw in gws:
+                            for addr in gw.get('NatGatewayAddresses'):
+                                if addr.get('NetworkInterfaceId') == eni.id:
+                                    self.show_nat_gateways(gw)
+                        self.show_network_interfaces(eni)
+                        if elapsed > timeout:
+                            raise E
+                        else:
+                            time.sleep(5)
         if deps['internet_gateways']:
             self.log.debug('Attempting to delete vpc internet gateways')
             for igw in deps['internet_gateways']:
