@@ -1543,21 +1543,21 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
     #  Newly created user tests for default VPC artifacts and attributes
     ###############################################################################################
-    def test1a_new_user_supported_platforms(self):
+    def test_1a_new_user_supported_platforms(self):
         """
         Definition:
         Attempts to check that a newly created user has VPC in it's supported platforms
         """
         return self.check_user_supported_platforms(user=self.new_ephemeral_user)
 
-    def test1b_new_user_default_vpc(self):
+    def test_1b_new_user_default_vpc(self):
         """
         Definition:
         Attempts to check that a newly created user has a default VPC
         """
         return self.check_user_default_vpcs(user=self.new_ephemeral_user)
 
-    def test1c_new_user_default_igw(self):
+    def test_1c_new_user_default_igw(self):
         """
         Definition:
         Attempts to check that a newly created user has a default igw associated with the
@@ -1565,7 +1565,7 @@ class VpcSuite(CliTestRunner):
         """
         return self.check_user_default_igw(user=self.new_ephemeral_user)
 
-    def test1d_new_user_default_subnets(self):
+    def test_1d_new_user_default_subnets(self):
         """
         Definition:
         Attempts to verify that a newly created user has default subnets in each availability
@@ -1573,7 +1573,7 @@ class VpcSuite(CliTestRunner):
         """
         return self.check_user_default_subnets(user=self.new_ephemeral_user)
 
-    def test1e_new_user_default_route_table(self):
+    def test_1e_new_user_default_route_table(self):
         """
         Definition:
         Attempts to verify that a newly created user has a default route table associated
@@ -1581,7 +1581,7 @@ class VpcSuite(CliTestRunner):
         """
         return self.check_user_default_route_table_present(user=self.new_ephemeral_user)
 
-    def test1f_new_user_default_routes(self):
+    def test_1f_new_user_default_routes(self):
         """
         Definition:
         Attempts to verify that a newly created user has a default routes present for the vpc
@@ -1595,7 +1595,7 @@ class VpcSuite(CliTestRunner):
         """
         return self.check_user_default_routes_present(user=self.new_ephemeral_user)
 
-    def test1ga_new_user_default_security_group_rules(self):
+    def test_1ga_new_user_default_security_group_rules(self):
         """
         Test attributes specific to the 'default' security group
         By default, no inbound traffic is allowed until you add inbound rules
@@ -1608,7 +1608,7 @@ class VpcSuite(CliTestRunner):
         """
         return self.check_user_default_security_group_rules(user=self.new_ephemeral_user)
 
-    def test1gb_new_user_default_security_group_packet_test(self, egress_test_ip=None):
+    def test_1gb_new_user_default_security_group_packet_test(self, egress_test_ip=None):
         """
         Your VPC includes a default security group whose initial rules are to deny all
         inbound traffic, allow all outbound traffic, and allow all traffic between
@@ -1692,7 +1692,7 @@ class VpcSuite(CliTestRunner):
         self.status('Packet test Complete. Passed')
 
 
-    def test1z_new_user_basic_instance_ssh_defaults(self):
+    def test_1z_new_user_basic_instance_ssh_defaults(self):
         """
             Definition:
             Attempts to run an instance in the default vpc and subnet and verify basic ssh
@@ -1711,7 +1711,7 @@ class VpcSuite(CliTestRunner):
     #  that user, then these tests will be skipped.
     ###############################################################################################
 
-    def test2a_test_user_supported_platforms(self):
+    def test_2a_test_user_supported_platforms(self):
         """
         Definition:
         Attempts to check that the current test user has VPC in it's supported platforms
@@ -1722,7 +1722,7 @@ class VpcSuite(CliTestRunner):
                raise SkipTestException('Test already run for the test user')
         return self.check_user_supported_platforms(user=self.user)
 
-    def test2b_test_user_default_vpc(self):
+    def test_2b_test_user_default_vpc(self):
         """
         Definition:
         Attempts to check that the current test user has a default VPC
@@ -1733,7 +1733,7 @@ class VpcSuite(CliTestRunner):
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_vpcs(user=self.user)
 
-    def test2c_test_user_default_igw(self):
+    def test_2c_test_user_default_igw(self):
         """
         Definition:
         Attempts to check that the current test user has a default igw associated with the
@@ -1745,7 +1745,7 @@ class VpcSuite(CliTestRunner):
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_igw(user=self.user)
 
-    def test2d_test_user_default_subnets(self):
+    def test_2d_test_user_default_subnets(self):
         """
         Definition:
         Attempts to verify that the current test user has default subnets in each availability
@@ -1757,7 +1757,7 @@ class VpcSuite(CliTestRunner):
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_subnets(user=self.user)
 
-    def test2e_test_user_default_route_table(self):
+    def test_2e_test_user_default_route_table(self):
         """
         Definition:
         Attempts to verify that the current test user has a default route table associated
@@ -1769,7 +1769,7 @@ class VpcSuite(CliTestRunner):
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_route_table_present(user=self.user)
 
-    def test2f_test_user_default_security_group_rules(self):
+    def test_2f_test_user_default_security_group_rules(self):
         """
         Test attributes specific to the 'default' security group
         By default, no inbound traffic is allowed until you add inbound rules
@@ -1786,7 +1786,7 @@ class VpcSuite(CliTestRunner):
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_security_group_rules(user=self.user)
 
-    def test2g_test_user_default_routes(self):
+    def test_2g_test_user_default_routes(self):
         """
         Definition:
         Attempts to verify that a test user has a default routes present for the vpc
@@ -1800,7 +1800,7 @@ class VpcSuite(CliTestRunner):
         """
         return self.check_user_default_routes_present(user=self.user)
 
-    def test2v1_vpc_cidr_block_range_large(self):
+    def test_2v1_vpc_cidr_block_range_large(self):
         """
         This test attempts to create a vpc larger than allowed cidr block range...
         You can assign a single CIDR block to a VPC. The allowed block size is between
@@ -1833,7 +1833,7 @@ class VpcSuite(CliTestRunner):
                 self.status('attempting to delete vpc after this test...')
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
-    def test2v2_vpc_cidr_block_range_small(self):
+    def test_2v2_vpc_cidr_block_range_small(self):
         """
         This test attempts to create a vpc smaller than allowed cidr block range...
         You can assign a single CIDR block to a VPC. The allowed block size is between
@@ -1870,7 +1870,7 @@ class VpcSuite(CliTestRunner):
                 self.status('attempting to delete vpc after this test...')
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
-    def test2v3_vpc_cidr_block_range_invalid_blocks(self):
+    def test_2v3_vpc_cidr_block_range_invalid_blocks(self):
         """
         This test attempts to create vpcs which with cidr values which are not permitted.
 
@@ -1912,7 +1912,7 @@ class VpcSuite(CliTestRunner):
 
 
 
-    def test2z_test_user_basic_instance_ssh_defaults(self):
+    def test_2z_test_user_basic_instance_ssh_defaults(self):
         """
         Definition:
         Attempts to run an instance in the default vpc and subnet and verify basic ssh
@@ -1935,7 +1935,7 @@ class VpcSuite(CliTestRunner):
     # - Legacy 'net test' covers most of the basic security group auth and revoke packet tests
     # - This should cover attributes specific to VPC
     ###############################################################################################
-    def test3b0_get_vpc_for_security_group_tests(self):
+    def test_3b0_get_vpc_for_security_group_tests(self):
         test_vpc = self.user.ec2.get_all_vpcs(filters={'tag-key': self.SUBNET_TEST_TAG,
                                                        'tag-value': self.test_id})
         if not test_vpc:
@@ -1948,7 +1948,7 @@ class VpcSuite(CliTestRunner):
             test_vpc = test_vpc[0]
         return test_vpc
 
-    def test3b1_default_security_group_initial_ingress_rules(self):
+    def test_3b1_default_security_group_initial_ingress_rules(self):
         """
         A users VPC includes a default security group whose initial rules are to deny all
         inbound traffic, allow all outbound traffic, and allow all traffic between
@@ -1995,7 +1995,7 @@ class VpcSuite(CliTestRunner):
                                  ' match expected attribute value:{2}'.format(key, grant[key],
                                                                               value))
 
-    def test3b2_default_security_group_initial_egress_rules(self):
+    def test_3b2_default_security_group_initial_egress_rules(self):
         """
         A users VPC includes a default security group whose initial rules are to deny all
         inbound traffic, allow all outbound traffic, and allow all traffic between
@@ -2040,7 +2040,7 @@ class VpcSuite(CliTestRunner):
 
 
 
-    def test3b4_test_security_group_count_limit(self):
+    def test_3b4_test_security_group_count_limit(self):
         """
         AWS: You can create up to 500 security groups per VPC.
         EUCA: Verify cloud property 'cloud.vpc.securitygroupspervpc'.
@@ -2065,7 +2065,7 @@ class VpcSuite(CliTestRunner):
                             .format(len(groups), limit))
 
 
-    def test3b5_test_security_group_rule_limits(self):
+    def test_3b5_test_security_group_rule_limits(self):
         """
         AWS: You can add up to 50 rules to a security group
         EUCA: you can add up to cloud.vpc.rulespersecuritygroup to a security group
@@ -2095,7 +2095,7 @@ class VpcSuite(CliTestRunner):
         else:
             raise ValueError('Was able to exceed rules per group limit of:{0}'.format(limit))
 
-    def test3b6_test_security_group_per_eni_limits(self):
+    def test_3b6_test_security_group_per_eni_limits(self):
         """
         You can assign up to 5 security groups to a network interface.
         EUCA: cloud.vpc.securitygroupspernetworkinterface
@@ -2131,7 +2131,7 @@ class VpcSuite(CliTestRunner):
             raise ValueError('Was able to exceed groups per eni limit of:{0}'.format(limit))
         eni.delete()
 
-    def test3z0_test_clean_up_security_group_vpc_dependencies(self):
+    def test_3z0_test_clean_up_security_group_vpc_dependencies(self):
         """
         Delete the VPC and dependency artifacts created for the security group testing.
         """
@@ -2144,7 +2144,7 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
     #  ROUTE TABLE tests
     ###############################################################################################
-    def test4b0_get_vpc_for_route_table_tests(self):
+    def test_4b0_get_vpc_for_route_table_tests(self):
         """
         Creates or fetches a VPC matching the filters for this test section to share.
         By default this will create an IGW, a default route using the IGW, and TAG the VPC
@@ -2163,7 +2163,7 @@ class VpcSuite(CliTestRunner):
         return test_vpc
 
 
-    def test4b1_get_subnets_for_route_table_tests(self, vpc=None, zones=None, count=1):
+    def test_4b1_get_subnets_for_route_table_tests(self, vpc=None, zones=None, count=1):
         """
         Creates or fetches subnets matching the filters for this test section to share.
         By default this test will search for available cidr blocks of /24 in size within the
@@ -2201,7 +2201,7 @@ class VpcSuite(CliTestRunner):
                              'Got:{1}'.format(count, len(subnets)))
         return subnets
 
-    def test4b2_route_table_verify_internet_gateway_route(self, subnet=None, user=None,
+    def test_4b2_route_table_verify_internet_gateway_route(self, subnet=None, user=None,
                                                            force_main_rt=False):
         """
         Launch a VM(s) in a subnet referencing the route table to be tested.
@@ -2308,7 +2308,7 @@ class VpcSuite(CliTestRunner):
                                              original_igw_route.destination_cidr_block,
                                              igw.id)
 
-    def test4b5_route_table_implicit_subnet_association(self):
+    def test_4b5_route_table_implicit_subnet_association(self):
         """
         Each subnet must be associated with a route table, which controls the routing
         for the subnet. If you don't explicitly associate a subnet with a particular
@@ -2322,7 +2322,7 @@ class VpcSuite(CliTestRunner):
                                                                       force_main_rt=True,
                                                                       user=user)
 
-    def test4b6_route_table_default_local_route(self):
+    def test_4b6_route_table_default_local_route(self):
         """
         Every route table contains a local route that enables communication within a VPC.
         You cannot modify or delete this route
@@ -2357,7 +2357,7 @@ class VpcSuite(CliTestRunner):
                 raise ValueError('No default local route found in route table?')
 
 
-    def test4b7a_route_table_can_not_delete_main_table(self):
+    def test_4b7a_route_table_can_not_delete_main_table(self):
         """
         You cannot delete the main route table, but you can replace the main route table
         with a custom table that you've created (so that this table is the default table
@@ -2389,7 +2389,7 @@ class VpcSuite(CliTestRunner):
             raise RuntimeError('Was able to delete main route table:{0} for vpc:{1}'
                                .format(rt.id, vpc.id))
 
-    def test4b7b_route_table_main_route_table_can_be_replaced(self, new_rt=None, revert=True):
+    def test_4b7b_route_table_main_route_table_can_be_replaced(self, new_rt=None, revert=True):
         """
         You cannot delete the main route table, but you can replace the main route table
         with a custom table that you've created (so that this table is the default table
@@ -2436,7 +2436,7 @@ class VpcSuite(CliTestRunner):
         else:
             return new_rt
 
-    def test4b10_route_table_add_and_delete_eni_route_packet_test(self, test_net='192.168.190.0'):
+    def test_4b10_route_table_add_and_delete_eni_route_packet_test(self, test_net='192.168.190.0'):
         """
         Test intends to verify routes which reference an ENI as the route point/gateway.
         Launch a VM(s) in a subnet referencing the route table to be tested.
@@ -2632,7 +2632,7 @@ class VpcSuite(CliTestRunner):
         finally:
             vm_rx.sys('ifconfig {0} down'.format(ethdummy, test_ip))
 
-    def test4b12_route_table_instance_id_with_multiple_eni_test(self,
+    def test_4b12_route_table_instance_id_with_multiple_eni_test(self,
                                                                 test_route='192.168.191.0/24',
                                                                 clean=True):
         """
@@ -2770,7 +2770,7 @@ class VpcSuite(CliTestRunner):
 
 
 
-    def test4b12_route_table_add_and_delete_vm_id_route_packet_test(self,
+    def test_4b12_route_table_add_and_delete_vm_id_route_packet_test(self,
                                                                     test_net='192.168.190.0'):
         """
         Test intends to verify routes which reference an INSTANCE ID as the route point/gateway.
@@ -2976,7 +2976,7 @@ class VpcSuite(CliTestRunner):
         self.status('Test Completed Successfully')
 
 
-    def test4c1_route_table_max_tables_per_vpc(self):
+    def test_4c1_route_table_max_tables_per_vpc(self):
         """
         There is a limit on the number of route tables you can create per VPC.
         cloud.vpc.routetablespervpc
@@ -3002,7 +3002,7 @@ class VpcSuite(CliTestRunner):
                 self.status('Passed. Could not exceed route table limit per VPC')
 
 
-    def test4c2_route_table_max_routes_per_table(self):
+    def test_4c2_route_table_max_routes_per_table(self):
         """
         There is a limit on the number of routes you can add per route table.
         cloud.vpc.routespertable
@@ -3066,7 +3066,7 @@ class VpcSuite(CliTestRunner):
             raise ValueError('Was able to exceed route limit per table of :{0}'.format(limit))
 
 
-    def test4z0_clean_up_route_table_test_vpc_dependencies(self):
+    def test_4z0_clean_up_route_table_test_vpc_dependencies(self):
         """
         Delete the VPC and dependency artifacts created for the security group testing.
         """
@@ -3079,7 +3079,7 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
     #  SUBNET tests
     ###############################################################################################
-    def test5b0_get_vpc_for_subnet_tests(self):
+    def test_5b0_get_vpc_for_subnet_tests(self):
         """
         Creates or fetches a VPC matching the filters for this test section to share.
         By default this will create an IGW, a default route using the IGW, and TAG the VPC
@@ -3097,7 +3097,7 @@ class VpcSuite(CliTestRunner):
             test_vpc = test_vpc[0]
         return test_vpc
 
-    def test5g0_vpc_cidr_block_range_full_vpc_cidr_block(self):
+    def test_5g0_vpc_cidr_block_range_full_vpc_cidr_block(self):
         """
         This test attempts to create a subnet equal to the size of the vpc cidr block.
 
@@ -3125,7 +3125,7 @@ class VpcSuite(CliTestRunner):
                 self.status('attempting to delete SUBNET after this test...')
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test5v1_subnet_duplicate_subnets(self):
+    def test_5v1_subnet_duplicate_subnets(self):
         """
         This test attempts to create 2 duplicate subnets, this should not be allowed...
 
@@ -3175,7 +3175,7 @@ class VpcSuite(CliTestRunner):
             for sub in subnets:
                 user.ec2.delete_subnet_and_dependency_artifacts(sub)
 
-    def test5v1_subnet_overlapping_cidr(self):
+    def test_5v1_subnet_overlapping_cidr(self):
         """
         This test attempts to create 2 subnets with overlapping cidr, this should not be allowed...
 
@@ -3243,7 +3243,7 @@ class VpcSuite(CliTestRunner):
 
 
 
-    def test5v1_subnet_cidr_block_range_large(self, cidr_mask=8):
+    def test_5v1_subnet_cidr_block_range_large(self, cidr_mask=8):
         """
         This test attempts to create a subnet larger than allowed cidr block range...
         The CIDR block of a subnet can be the same as the CIDR block for the VPC (for a single
@@ -3289,7 +3289,7 @@ class VpcSuite(CliTestRunner):
                 self.status('attempting to delete SUBNET after this test...')
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test5v2_subnet_cidr_block_range_large(self, cidr_mask=29):
+    def test_5v2_subnet_cidr_block_range_large(self, cidr_mask=29):
         """
         This test attempts to create a subnet smaller than allowed cidr block range...
         The CIDR block of a subnet can be the same as the CIDR block for the VPC (for a single
@@ -3336,7 +3336,7 @@ class VpcSuite(CliTestRunner):
                 self.status('attempting to delete SUBNET after this test...')
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test5x0_subnets_per_vpc_limit(self, vpc=None):
+    def test_5x0_subnets_per_vpc_limit(self, vpc=None):
         """
         Test that the max subnets per vpc defined in the following property can not be exceeded,
         and the user can create the amount defined in the property.
@@ -3407,7 +3407,7 @@ class VpcSuite(CliTestRunner):
             for subnet in cleanup:
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test5z0_test_clean_up_subnet_test_vpc_dependencies(self):
+    def test_5z0_test_clean_up_subnet_test_vpc_dependencies(self):
         """
         Delete the VPC and dependency artifacts created for the security group testing.
         """
@@ -3433,7 +3433,7 @@ class VpcSuite(CliTestRunner):
                              'Error:"{2}"'.format(get_traceback(), vm, E))
 
 
-    def test6b0_get_vpc_for_eni_tests(self):
+    def test_6b0_get_vpc_for_eni_tests(self):
         """
         Creates or fetches a VPC matching the filters for this test section to share.
         By default this will create an IGW, a default route using the IGW, and TAG the VPC
@@ -3453,7 +3453,7 @@ class VpcSuite(CliTestRunner):
         return test_vpc
 
 
-    def test6b5_basic_create_and_delete_eni_test(self):
+    def test_6b5_basic_create_and_delete_eni_test(self):
         """
         Create a set of valid ENIs with different attributes
         check the ENI attributes in the response.
@@ -3532,7 +3532,7 @@ class VpcSuite(CliTestRunner):
                                .format(attempts, elapsed, ",".join(delete_me)))
         self.status('Passed. Basic create and delete ENI checks complete')
 
-    def test6c0_eni_basic_creation_deletion_tests_extended(self):
+    def test_6c0_eni_basic_creation_deletion_tests_extended(self):
         """
         Test will attempt to create ENIs using invalid requests/attributes.
         - Request a private ip outside the subnet range
@@ -3635,7 +3635,7 @@ class VpcSuite(CliTestRunner):
                     user.ec2.delete_subnet_and_dependency_artifacts(sub)
 
 
-    def test6c_eni_eip_vpc_reserved_addresses(self):
+    def test_6c_eni_eip_vpc_reserved_addresses(self):
         """
         Confirm the system does not allow the following reserved IP addresses.
         This test will create a test vpc, and a single subnet within that vpc with a cidr block
@@ -3693,7 +3693,7 @@ class VpcSuite(CliTestRunner):
         if vpc:
             user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
-    def test6d1_eni_multiple_post_run_attach_detach_and_terminate_tests(self):
+    def test_6d1_eni_multiple_post_run_attach_detach_and_terminate_tests(self):
         """
         Test Attaching and detaching an ENI to running instances in each zone.
         Note most checks are performed in the euinstance class attach/detach methods.
@@ -3761,7 +3761,7 @@ class VpcSuite(CliTestRunner):
                 self.status('Attempting to delete subnet and dependency artifacts from this test')
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test6d2_eni_attribute_delete_on_terminate(self):
+    def test_6d2_eni_attribute_delete_on_terminate(self):
         """
         Attempts to verify the delete on terminate network interface attachment attribute.
         - Attach an ENI to VM in each zone.
@@ -3812,7 +3812,7 @@ class VpcSuite(CliTestRunner):
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
 
-    def test6e0_eni_runtime_attach_mutiple_eni_w_eip_and_delete_on_terminate(self):
+    def test_6e0_eni_runtime_attach_mutiple_eni_w_eip_and_delete_on_terminate(self):
         """
         Request multiple ENIs during the run instance request.
         Verify the network devices on are present on the guests, and the ENI attributes have
@@ -3869,7 +3869,7 @@ class VpcSuite(CliTestRunner):
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
 
-    def test6e2_eni_ebs_multiple_attach_on_run_stop_start_detach(self):
+    def test_6e2_eni_ebs_multiple_attach_on_run_stop_start_detach(self):
         """
             Using an EBS backed Instance...
             Request multiple ENIs during the run instance request.
@@ -3932,7 +3932,7 @@ class VpcSuite(CliTestRunner):
                 self.status('Attempting to delete subnet and dependency artifacts from this test')
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test6f1_eni_per_vmtype_test(self, vmtype='m1.large'):
+    def test_6f1_eni_per_vmtype_test(self, vmtype='m1.large'):
         """
         Verify that a user can attach the number of ENIs the vmtype allows.
         Verify that if a user attemtps to exceed the # of ENIs the proper error is returned.
@@ -3991,7 +3991,7 @@ class VpcSuite(CliTestRunner):
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
 
-    def test6h1_eni_eip_reassociate_toggle_basic_test(self):
+    def test_6h1_eni_eip_reassociate_toggle_basic_test(self):
         """
         Test running a VM with an eip associated with the primary ENI.
         Verify connectivity to the EIP using ssh/ping.
@@ -4121,7 +4121,7 @@ class VpcSuite(CliTestRunner):
                 self.status('Attempting to delete subnet and dependency artifacts from this test')
                 user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test6m1_eni_migration_test_with_secondary_eni(self, clean=True):
+    def test_6m1_eni_migration_test_with_secondary_eni(self, clean=True):
         """
         Attempts to migrate an instance in each zone with a secondary ENI attached and
         verify the VMs and their ENIs migrate correctly.
@@ -4323,7 +4323,7 @@ class VpcSuite(CliTestRunner):
                                 'this test')
                     user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test6n1_eni_swap_between_vms_packet_test(self, clean=True):
+    def test_6n1_eni_swap_between_vms_packet_test(self, clean=True):
         """
         Verify connectivity moving a network interface between two or more VMs, and back.
         Check ENI attribute state and verify packets are going to the correct recipient.
@@ -4575,7 +4575,7 @@ class VpcSuite(CliTestRunner):
                     self.status('Attempting to delete subnet and dependency artifacts from this test')
                     user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
-    def test6p1_eni_sec_group_tcp_icmp_udp_sctp_inner_vpc_eni_packet_tests(self, clean=True,
+    def test_6p1_eni_sec_group_tcp_icmp_udp_sctp_inner_vpc_eni_packet_tests(self, clean=True,
                                                                            icmp=True, udp=True,
                                                                            tcp=True, sctp=True,
                                                                            stop_on_fail=False,
@@ -4985,7 +4985,7 @@ class VpcSuite(CliTestRunner):
                 self.status('PACKET TEST PASSED')
         return tables
 
-    def test6q0_eni_attach_detach_ping_multiple_enis_subnets_groups(self, ping=False, clean=None):
+    def test_6q0_eni_attach_detach_ping_multiple_enis_subnets_groups(self, ping=False, clean=None):
         """
         Attempts to attach and quickly detach several ENIs to a single VM in each zone verifying
         the private IP of each ENI with PING from a 2nd VM with ENIs in each subnet of the VM
@@ -5080,7 +5080,7 @@ class VpcSuite(CliTestRunner):
                     user.ec2.delete_subnet_and_dependency_artifacts(subnet)
 
 
-    def test6z0_test_clean_up_eni_test_vpc_dependencies(self):
+    def test_6z0_test_clean_up_eni_test_vpc_dependencies(self):
         """
         Delete the VPC and dependency artifacts created for the security group testing.
         """
@@ -5094,7 +5094,7 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
     # NAT Gateway tests
     ###############################################################################################
-    def test8b0_get_vpc_for_nat_gw_tests(self):
+    def test_8b0_get_vpc_for_nat_gw_tests(self):
         """
         Finds an existing VPC
         """
@@ -5110,7 +5110,7 @@ class VpcSuite(CliTestRunner):
             test_vpc = test_vpc[0]
         return test_vpc
 
-    def test8d0_nat_gw_basic_creation_and_attribute_check(self, clean=None):
+    def test_8d0_nat_gw_basic_creation_and_attribute_check(self, clean=None):
         """
         When a NAT gateway is created, it receives an elastic network interface that's
         automatically assigned a private IP address from the IP address range of your subnet.
@@ -5272,7 +5272,7 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test complete')
 
-    def test8e1_nat_gw_eip_association_negative_tests(self, clean=None):
+    def test_8e1_nat_gw_eip_association_negative_tests(self, clean=None):
         """
         You can associate exactly one Elastic IP address with a NAT gateway.
         You cannot disassociate an Elastic IP address from a NAT gateway after it's created.
@@ -5336,7 +5336,7 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('test and cleanup complete')
 
-    def test8s0_nat_gw_basic_packet_type_tests(self, host_machine=None,
+    def test_8s0_nat_gw_basic_packet_type_tests(self, host_machine=None,
                                                                   non_nat_host=None, clean=None):
         """
         A NAT gateway supports the following protocols: TCP, UDP, and ICMP.
@@ -5581,7 +5581,7 @@ class VpcSuite(CliTestRunner):
         self.status('test and cleanup complete')
 
 
-    def test8x0_nat_gw_max_gw_per_zone_limit(self, clean=None):
+    def test_8x0_nat_gw_max_gw_per_zone_limit(self, clean=None):
         """
         Test the eucalyptus property:cloud.vpc.natgatewaysperavailabilityzone
         For All Zones...
@@ -5690,7 +5690,7 @@ class VpcSuite(CliTestRunner):
                     eip.delete()
         self.status('Test and test cleanup complete')
 
-    def test8z0_test_clean_up_nat_gw_test_vpc_dependencies(self):
+    def test_8z0_test_clean_up_nat_gw_test_vpc_dependencies(self):
         """
         Delete the VPC and dependency artifacts created for the security group testing.
         """
@@ -5713,7 +5713,7 @@ class VpcSuite(CliTestRunner):
     and you can change the contents of the default network ACL
     """
     ###############################################################################################
-    def test10c0_net_acl_max_net_acl_per_vpc_limit(self):
+    def test_10c0_net_acl_max_net_acl_per_vpc_limit(self):
         """
         Test the eucalyptus property:cloud.vpc.networkaclspervpc
         Confirm the limit can be reached and not exceeded.

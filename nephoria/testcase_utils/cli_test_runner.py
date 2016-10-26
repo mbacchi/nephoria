@@ -817,13 +817,44 @@ class CliTestRunner(object):
                 # Get all the local methods which being with the work 'test' and run those.
                 def key(text):
                     return [(int(c) if c.isdigit() else c) for c in re.split('(\d+)', text)]
+
+                def get_ord(x):
+                    x = str(x)
+                    if x.isdigit():
+                        return ord(x) + ord('Z')
+                    else:
+                        return ord(x)
+
+                def keycmp(key1, key2):
+                    key1max = len(key1)
+                    key2max = len(key2)
+                    for key_index in xrange(0, key1max):
+                        if key_index > key2max - 1:
+                            return 1
+                        x = str(key1[key_index])
+                        y = str(key2[key_index])
+                        if x.isdigit() and y.isdigit():
+                            c = int(x) - int(y)
+                            if c != 0:
+                                return c
+                        else:
+                            xmax = len(x)
+                            ymax = len(y)
+                            for i in xrange(0, xmax):
+                                if i > ymax - 1:
+                                    c = 1
+                                else:
+                                    c = get_ord(x[i]) - get_ord(y[i])
+                                if c != 0:
+                                    return c
+                    return 0
                 testlist = []
                 attr_names = []
                 for name in dir(self):
                     if name.startswith('test'):
                         attr_names.append(name)
                 attr_names = apply_regex(attr_names)
-                for name in sorted(attr_names, key=key):
+                for name in sorted(attr_names, cmp=keycmp, key=key):
                     attr = getattr(self, name, None)
                     if hasattr(attr, '__call__'):
                         testlist.append(self.create_testunit_from_method(method=attr,
