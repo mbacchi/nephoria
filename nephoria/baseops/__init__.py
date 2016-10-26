@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import copy
+import re
 from logging import DEBUG, NOTSET
 from cloud_utils.log_utils.eulogger import Eulogger
 from cloud_utils.log_utils import markup, get_traceback
@@ -169,7 +170,9 @@ class BaseOps(object):
 
     @property
     def _use_verbose_requests(self):
-        if self._try_verbose is None:
+        if re.search('amazonaws.com', self.service_url):
+            self._try_verbose = False
+        elif self._try_verbose is None:
             self._try_verbose = False
             if self.eucarc:
                 account = getattr(self.eucarc, 'aws_account_name', None)

@@ -5235,8 +5235,9 @@ class VpcSuite(CliTestRunner):
                                                         desired_state='failed',
                                                         failed_states=['available', 'deleting',
                                                                        'deleted'])
+                    self.log.debug('Got response for negative NATGW creation:"{0}"'.format(natgw))
                     if natgw:
-                        if not hasattr('FailureMessage', natgw):
+                        if 'FailureMessage' not in natgw.keys():
                             raise ValueError('NatGW:{0} failed but did not contain '
                                              'FailureMessage attr?'.format(gwid))
                         if not re.search('already associated', natgw.get('FailureMessage')):
@@ -5249,9 +5250,9 @@ class VpcSuite(CliTestRunner):
                         raise ValueError('Create Failed as expected but did not return '
                                          'failed NATGW obj in response')
                 except Exception as E:
-                    self.log.error('GOT UNEXPECTED ERROR - creating an NATGW with an in-use EIP '
-                                   'should return the gw in pending or failed status w/o error '
-                                   'in the response')
+                    self.log.error('{0}\nGOT UNEXPECTED ERROR - creating an NATGW with an in-use '
+                                   'EIP should return the gw in pending or failed status w/o '
+                                   'error in the response. Error:"{1}'.format(get_traceback(), E))
                     raise E
                 self.status('Test completed successfully for all zones')
         except Exception as E:

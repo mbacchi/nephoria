@@ -917,7 +917,8 @@ disable_root: false"""
 
     get_all_vpcs.__doc__ = "{0}".format(VPCConnection.get_all_vpcs.__doc__)
 
-    def get_vpc(self, vpc_id, verbose=True):
+    def get_vpc(self, vpc_id, verbose=None):
+        verbose = self._use_verbose_requests
         vpcs = self.get_all_vpcs(vpc_ids=[vpc_id], verbose=verbose) or []
         for vpc in vpcs:
             if vpc.id == vpc_id:
@@ -4863,6 +4864,8 @@ disable_root: false"""
                     natgw = natgw.get('NatGatewayId')
                 else:
                     natgw = natgw.id
+            else:
+                natgw = natgw.strip()
             gws = self.get_nat_gateways(id_list=natgw)
             if gws:
                 if len(gws) != 1:
@@ -4952,7 +4955,7 @@ disable_root: false"""
 
         """
         if failed_states is None:
-            failed_states = ['pending', 'failed', 'available']
+            failed_states = ['pending', 'available']
         gws_ids = []
         if not gateways:
             self.log.warning('No gateways provided to delete')
@@ -4998,13 +5001,15 @@ disable_root: false"""
             start = time.time()
             elapsed = 0
             checklist = copy.copy(gws_ids)
+            self.log.debug('Checking the following NATGWS to state:{0}, GWS:{1}'
+                           .format(desired_state, checklist))
             while elapsed < timeout and checklist:
                 elapsed = int(time.time() - start)
                 waiting = []
                 for gw_id in gws_ids:
                     if gw_id in checklist:
                         try:
-                            gw = self.get_nat_gateway(gw)
+                            gw = self.get_nat_gateway(gw_id)
                         except ClientError as E:
                             checklist.remove(gw_id)
                             status = E.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
@@ -5019,7 +5024,7 @@ disable_root: false"""
                                 checklist.remove(gw_id)
                             elif in_failed_state(gw):
                                 checklist.remove(gw_id)
-                                failed[gw] = "Gateway:{0} in defined failed state:{1}"\
+                                failed[gw_id] = "Gateway:{0} in defined failed state:{1}"\
                                     .format(gw_id, gw.get('State'))
                             else:
                                 waiting.append("{0}:{1}".format(gw_id, gw.get('State')))
