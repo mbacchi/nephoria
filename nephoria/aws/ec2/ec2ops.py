@@ -4937,7 +4937,7 @@ disable_root: false"""
         printmethod(buf)
 
     def delete_nat_gateways(self, gateways=None, timeout=180, desired_state='deleted',
-                            failed_states=None):
+                            failed_states=None, ignore_state_failed=True):
         """
         Deletes a single or list of NAT Gateways. If a no gateways are provided it will attempt to
         delete all the gateways visible to the user making the request. If timeout is not None,
@@ -4956,6 +4956,9 @@ disable_root: false"""
         """
         if failed_states is None:
             failed_states = ['pending', 'available']
+        if 'failed' in failed_states and ignore_state_failed:
+            raise ValueError('Can not ignore_state_failed if "failed" is provided '
+                             'failed_states:"{0}"'.format(failed_states))
         gws_ids = []
         if not gateways:
             self.log.warning('No gateways provided to delete')
@@ -4970,8 +4973,13 @@ disable_root: false"""
             else:
                 gws_ids.append(gw.id)
         def in_desired_state(gw):
+            state = gw.get('State')
             if desired_state:
-                if not gw.get('State') == desired_state:
+                if ignore_state_failed and state == 'failed':
+                    self.log.warning('Ignoring NATGW:{0} in "failed" state while deleting NATGWs'
+                                     .format(gw.get('NatGatewayId')))
+                    return True
+                elif not state == desired_state:
                     return False
             return True
 
@@ -4983,6 +4991,7 @@ disable_root: false"""
         failed = {}
         good = []
         remove = []
+
         if timeout:
             for gw in gws_ids:
                 try:
