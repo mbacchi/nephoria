@@ -1432,9 +1432,12 @@ disable_root: false"""
             route_pt.align = 'l'
             route_pt.padding_width = 0
             for route in route_table.routes:
+                state = route.state
+                if state != 'active':
+                    state = red(state)
                 dest = "{0}\n{1}".format(
                     "DEST: {0}".format(route.destination_cidr_block).ljust(ip_len - 1),
-                    "STATE: {0}".format(route.state).ljust(ip_len - 1)
+                    "STATE: {0}".format(state).ljust(ip_len - 1)
                 )
                 target = "{0}\n{1}".format(
                     "GW ID:{0}".format(route.gateway_id).ljust(target_len - 1),

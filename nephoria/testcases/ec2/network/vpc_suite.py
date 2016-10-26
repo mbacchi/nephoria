@@ -941,9 +941,9 @@ class VpcSuite(CliTestRunner):
                 default_cidr_route = True
             if check_igw:
                 if route.gateway_id == igw.id and route.destination_cidr_block == '0.0.0.0/0':
-                    if route.origin != 'CreateRouteTable':
+                    if route.origin != 'CreateRoute':
                         raise ValueError('Default IGW route has incorrect route origin:{0}, '
-                                         'should be:{1}'.format(route.origin, 'CreateRouteTable'))
+                                         'should be:{1}'.format(route.origin, 'CreateRoute'))
                     default_igw_route = True
             if default_igw_route and default_cidr_route:
                 break
@@ -2677,17 +2677,29 @@ class VpcSuite(CliTestRunner):
         try:
             try:
                 route = user.ec2.create_route(route_table_id=new_rt.id,
-                                                         destination_cidr_block=test_route,
-                                                         instance_id=vm_rx.id)
+                                              destination_cidr_block=test_route,
+                                              instance_id=vm_rx.id)
             except Exception as E:
-                if isinstance(E, EC2ResponseError) and int(E.status) == 400 and \
-                    E.reason == 'InvalidInstanceID':
-                    self.status('Passed. Attempt to create a route referencing an instance with'
-                                'multiple ENI was rejected with the proper errror:{0}'.format(E))
+                if isinstance(E, ClientError):
+                    status = E.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+                    reason = E.response.get('Error').get('Code')
+                    if int(status) == 400 and reason == 'InvalidInstanceID':
+                        self.status('Passed. Attempt to create a route referencing an instance '
+                                    'with multiple ENI was rejected with the proper errror:{0}'
+                                    .format(E))
+                    else:
+                        raise ValueError('Attempt to create a route referencing an instance with'
+                                         'multiple ENI returned an error but not the one this '
+                                         'test expected. (400) got Status:{0}, '
+                                         '(InvalidInstanceID) got Reason:{1}, Error:{0}'
+                                         .format(status, reason, E))
                 else:
                     raise ValueError('Attempt to create a route referencing an instance with'
-                                     'multiple ENI returned an error but no the one this test '
-                                     'expected. Error:{0}'.format(E))
+                                     'multiple ENI returned an error but not the one this test '
+                                     'expected. Expected type: "{0}", got "{1}", msg:"{2}"'
+                                     .format(ClientError. type(E), E))
+
+
             else:
                 raise RuntimeError('System either created a route or did not respond with an error'
                                    'when attempting to create a route referencing an instance with'
