@@ -1621,7 +1621,7 @@ class VpcSuite(CliTestRunner):
         using ICMP to the egress test ip (defaults to a UFS).
         """
         user = self.new_ephemeral_user
-        vpc = self.test1b_new_user_default_vpc()
+        vpc = self.test_1b_new_user_default_vpc()
         subnet = user.ec2.connection.get_all_subnets(filters={'vpc-id': vpc.id,
                                                               'default-for-az': 'true'})[0]
         def_sg = user.ec2.get_security_group(name='default', vpc_id=vpc.id)
@@ -1717,7 +1717,7 @@ class VpcSuite(CliTestRunner):
         Attempts to check that the current test user has VPC in it's supported platforms
         """
         if self.user == self.new_ephemeral_user:
-           test = self.get_testunit_by_method(self.test1a_new_user_supported_platforms)
+           test = self.get_testunit_by_method(self.test_1a_new_user_supported_platforms)
            if test and test.result != TestResult.not_run:
                raise SkipTestException('Test already run for the test user')
         return self.check_user_supported_platforms(user=self.user)
@@ -1728,7 +1728,7 @@ class VpcSuite(CliTestRunner):
         Attempts to check that the current test user has a default VPC
         """
         if self.user == self.new_ephemeral_user:
-            test = self.get_testunit_by_method(self.test1b_new_user_default_vpc)
+            test = self.get_testunit_by_method(self.test_1b_new_user_default_vpc)
             if test and test.result != TestResult.not_run:
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_vpcs(user=self.user)
@@ -1740,7 +1740,7 @@ class VpcSuite(CliTestRunner):
         default vpc
         """
         if self.user == self.new_ephemeral_user:
-            test = self.get_testunit_by_method(self.test1c_new_user_default_igw)
+            test = self.get_testunit_by_method(self.test_1c_new_user_default_igw)
             if test and test.result != TestResult.not_run:
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_igw(user=self.user)
@@ -1798,7 +1798,7 @@ class VpcSuite(CliTestRunner):
         zone
         """
         if self.user == self.new_ephemeral_user:
-            test = self.get_testunit_by_method(self.test1d_new_user_default_subnets)
+            test = self.get_testunit_by_method(self.test_1d_new_user_default_subnets)
             if test and test.result != TestResult.not_run:
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_subnets(user=self.user)
@@ -1810,7 +1810,7 @@ class VpcSuite(CliTestRunner):
         with its default vpc
         """
         if self.user == self.new_ephemeral_user:
-            test = self.get_testunit_by_method(self.test1e_new_user_default_route_table)
+            test = self.get_testunit_by_method(self.test_1e_new_user_default_route_table)
             if test and test.result != TestResult.not_run:
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_route_table_present(user=self.user)
@@ -1827,7 +1827,7 @@ class VpcSuite(CliTestRunner):
 
         """
         if self.user == self.new_ephemeral_user:
-            test = self.get_testunit_by_method(self.test1ga_new_user_default_security_group_rules)
+            test = self.get_testunit_by_method(self.test_1ga_new_user_default_security_group_rules)
             if test and test.result != TestResult.not_run:
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_security_group_rules(user=self.user)
@@ -1966,7 +1966,7 @@ class VpcSuite(CliTestRunner):
         This test should use the primary test user.
         """
         if self.user == self.new_ephemeral_user:
-            test = self.get_testunit_by_method(self.test1z_new_user_basic_instance_ssh_defaults)
+            test = self.get_testunit_by_method(self.test_1z_new_user_basic_instance_ssh_defaults)
             if test and test.result != TestResult.not_run:
                 raise SkipTestException('Test already run for the test user')
         user = self.user
@@ -1983,13 +1983,13 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
     def test_3b0_get_vpc_for_security_group_tests(self):
         test_vpc = self.user.ec2.get_all_vpcs(filters={'tag-key': self.SUBNET_TEST_TAG,
-                                                       'tag-value': self.test_id})
+                                                       'tag-value': self.test__id})
         if not test_vpc:
             test_vpc = self.create_test_vpcs()
             if not test_vpc:
                 raise RuntimeError('Failed to create test VPC for subnet tests?')
             test_vpc = test_vpc[0]
-            self.user.ec2.create_tags([test_vpc.id], {self.SECURITY_GROUP_TEST_TAG: self.test_id})
+            self.user.ec2.create_tags([test_vpc.id], {self.SECURITY_GROUP_TEST_TAG: self.test__id})
         else:
             test_vpc = test_vpc[0]
         return test_vpc
@@ -2007,7 +2007,7 @@ class VpcSuite(CliTestRunner):
         You can remove the rule and add outbound rules that allow specific outbound traffic only.
         """
         user = self.user
-        vpc = self.test3b0_get_vpc_for_security_group_tests()
+        vpc = self.test_3b0_get_vpc_for_security_group_tests()
         def_sg = user.ec2.get_security_group(name='default', vpc_id=vpc.id)
         user.ec2.show_security_group(def_sg)
         ingress_rules = def_sg.rules
@@ -2054,7 +2054,7 @@ class VpcSuite(CliTestRunner):
         You can remove the rule and add outbound rules that allow specific outbound traffic only.
         """
         user = self.user
-        vpc = self.test3b0_get_vpc_for_security_group_tests()
+        vpc = self.test_3b0_get_vpc_for_security_group_tests()
         def_sg = user.ec2.get_security_group(name='default', vpc_id=vpc.id)
         user.ec2.show_security_group(def_sg)
         egress_rules = def_sg.rules_egress
@@ -2092,7 +2092,7 @@ class VpcSuite(CliTestRunner):
         EUCA: Verify cloud property 'cloud.vpc.securitygroupspervpc'.
         """
         user = self.user
-        vpc = self.test3b0_get_vpc_for_security_group_tests()
+        vpc = self.test_3b0_get_vpc_for_security_group_tests()
         prop = self.tc.sysadmin.get_property('cloud.vpc.securitygroupspervpc')
         prop.show()
         limit = int(prop.value)
@@ -2117,7 +2117,7 @@ class VpcSuite(CliTestRunner):
         EUCA: you can add up to cloud.vpc.rulespersecuritygroup to a security group
         """
         user = self.user
-        vpc = self.test3b0_get_vpc_for_security_group_tests()
+        vpc = self.test_3b0_get_vpc_for_security_group_tests()
         prop = self.tc.sysadmin.get_property('cloud.vpc.rulespersecuritygroup')
         prop.show()
         limit = int(prop.value)
@@ -2147,7 +2147,7 @@ class VpcSuite(CliTestRunner):
         EUCA: cloud.vpc.securitygroupspernetworkinterface
         """
         user = self.user
-        vpc = self.test3b0_get_vpc_for_security_group_tests()
+        vpc = self.test_3b0_get_vpc_for_security_group_tests()
         prop = self.tc.sysadmin.get_property('cloud.vpc.securitygroupspernetworkinterface')
         prop.show()
         limit = int(prop.value)
@@ -2183,7 +2183,7 @@ class VpcSuite(CliTestRunner):
         """
         if not self.args.no_clean:
             user = self.user
-            vpc = self.test3b0_get_vpc_for_security_group_tests()
+            vpc = self.test_3b0_get_vpc_for_security_group_tests()
             if vpc:
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
@@ -2197,13 +2197,13 @@ class VpcSuite(CliTestRunner):
         for later filtering.
         """
         test_vpc = self.user.ec2.get_all_vpcs(filters={'tag-key': self.ROUTE_TABLE_TEST_TAG,
-                                                       'tag-value': self.test_id})
+                                                       'tag-value': self.test__id})
         if not test_vpc:
             test_vpc = self.create_test_vpcs()
             if not test_vpc:
                 raise RuntimeError('Failed to create test VPC for route table tests?')
             test_vpc = test_vpc[0]
-            self.user.ec2.create_tags([test_vpc.id], {self.ROUTE_TABLE_TEST_TAG: self.test_id})
+            self.user.ec2.create_tags([test_vpc.id], {self.ROUTE_TABLE_TEST_TAG: self.test__id})
         else:
             test_vpc = test_vpc[0]
         return test_vpc
@@ -2216,10 +2216,10 @@ class VpcSuite(CliTestRunner):
         VPC provided, or the default VPC for this test section.
         The test will TAG the subnets for this test section for later filtering.
         """
-        vpc = vpc or self.test4b0_get_vpc_for_route_table_tests()
+        vpc = vpc or self.test_4b0_get_vpc_for_route_table_tests()
         subnets = self.user.ec2.get_all_subnets(filters={'vpc_id': vpc.id,
                                                          'tag-key': self.ROUTE_TABLE_TEST_TAG,
-                                                         'tag-value': self.test_id}) or []
+                                                         'tag-value': self.test__id}) or []
         zones = zones or self.zones
         if not zones:
             raise ValueError('Could not find any zones?')
@@ -2237,7 +2237,7 @@ class VpcSuite(CliTestRunner):
                     new_subnets = self.create_test_subnets(vpc=vpc, zones=zones_to_use,
                                                            count_per_zone=sub_count)
                     sub_ids = [str(x.id) for x in new_subnets]
-                    self.user.ec2.create_tags(sub_ids, {self.ROUTE_TABLE_TEST_TAG: self.test_id})
+                    self.user.ec2.create_tags(sub_ids, {self.ROUTE_TABLE_TEST_TAG: self.test__id})
                     subnets += new_subnets
                     self.log.debug('Created {0}/{1} new subnets, total subnets:{2}, requested{3}'
                                    .format(len(new_subnets), need, len(subnets), count))
@@ -2265,8 +2265,8 @@ class VpcSuite(CliTestRunner):
                                      .format(user, subnet, type(subnet)))
                 subnet = subnetobj
             vpc = user.ec2.get_vpc(subnet.vpc_id)
-        vpc = vpc or self.test4b0_get_vpc_for_route_table_tests()
-        subnet = subnet or self.test4b1_get_subnets_for_route_table_tests(vpc, count=1)[0]
+        vpc = vpc or self.test_4b0_get_vpc_for_route_table_tests()
+        subnet = subnet or self.test_4b1_get_subnets_for_route_table_tests(vpc, count=1)[0]
 
         user.ec2.show_subnet(subnet)
 
@@ -2361,10 +2361,10 @@ class VpcSuite(CliTestRunner):
         route table, the subnet is implicitly associated with the main route table.
         """
         user = self.user
-        subnet = self.test4b1_get_subnets_for_route_table_tests(count=1)[0]
+        subnet = self.test_4b1_get_subnets_for_route_table_tests(count=1)[0]
         self.status('Using the IGW test on the main route table to verify the main'
                     'route table is implicitly in use on a subnet w/o route table association...')
-        return self.test4b2_route_table_verify_internet_gateway_route(subnet=subnet,
+        return self.test_4b2_route_table_verify_internet_gateway_route(subnet=subnet,
                                                                       force_main_rt=True,
                                                                       user=user)
 
@@ -2374,8 +2374,8 @@ class VpcSuite(CliTestRunner):
         You cannot modify or delete this route
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
-        subnet = self.test4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
+        subnet = self.test_4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
         new_rt = user.ec2.connection.create_route_table(subnet.vpc_id)
         rts = user.ec2.connection.get_all_route_tables(filters={'vpc-id': vpc.id})
         for rt in rts:
@@ -2413,7 +2413,7 @@ class VpcSuite(CliTestRunner):
         the route table to be the new main route table.
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
         rts = user.ec2.connection.get_all_route_tables(
             filters={'association.main': 'true', 'vpc-id': vpc.id})
         if not rts:
@@ -2445,7 +2445,7 @@ class VpcSuite(CliTestRunner):
         the route table to be the new main route table.
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
         def get_main_route_table(vpc):
             rts = user.ec2.connection.get_all_route_tables(
                 filters={'association.main': 'true', 'vpc-id': vpc.id})
@@ -2477,7 +2477,7 @@ class VpcSuite(CliTestRunner):
         self.status('Replaced main route table.')
         if revert:
             self.status('Reverting back to previous main route table...')
-            return self.test4b7b_route_table_main_route_table_can_be_replaced(new_rt=main_rt,
+            return self.test_4b7b_route_table_main_route_table_can_be_replaced(new_rt=main_rt,
                                                                               revert=False)
         else:
             return new_rt
@@ -2493,8 +2493,8 @@ class VpcSuite(CliTestRunner):
         Verify that packets are routed correctly per route provided.
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
-        subnet = self.test4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
+        subnet = self.test_4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
         igw = user.ec2.connection.get_all_internet_gateways(
             filters={'attachment.vpc-id': vpc.id})[0]
         for rt in user.ec2.connection.get_all_route_tables(
@@ -2691,8 +2691,8 @@ class VpcSuite(CliTestRunner):
 
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
-        subnet = self.test4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
+        subnet = self.test_4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
         igw = user.ec2.connection.get_all_internet_gateways(
             filters={'attachment.vpc-id': vpc.id})[0]
         for rt in user.ec2.connection.get_all_route_tables(
@@ -2829,8 +2829,8 @@ class VpcSuite(CliTestRunner):
         Verify that packets are routed correctly per route provided.
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
-        subnet = self.test4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
+        subnet = self.test_4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
         igw = user.ec2.connection.get_all_internet_gateways(
             filters={'attachment.vpc-id': vpc.id})[0]
         for rt in user.ec2.connection.get_all_route_tables(
@@ -3028,7 +3028,7 @@ class VpcSuite(CliTestRunner):
         cloud.vpc.routetablespervpc
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
         prop = self.tc.sysadmin.get_property('cloud.vpc.routetablespervpc')
         prop.show()
         limit = int(prop.value)
@@ -3054,8 +3054,8 @@ class VpcSuite(CliTestRunner):
         cloud.vpc.routespertable
         """
         user = self.user
-        vpc = self.test4b0_get_vpc_for_route_table_tests()
-        subnet = self.test4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
+        vpc = self.test_4b0_get_vpc_for_route_table_tests()
+        subnet = self.test_4b1_get_subnets_for_route_table_tests(vpc=vpc, count=1)[0]
         eni = self.get_test_enis_for_subnet(subnet=subnet, count=1)[0]
         prop = self.tc.sysadmin.get_property('cloud.vpc.routespertable')
         prop.show()
@@ -3118,7 +3118,7 @@ class VpcSuite(CliTestRunner):
         """
         if not self.args.no_clean:
             user = self.user
-            vpc = self.test4b0_get_vpc_for_route_table_tests()
+            vpc = self.test_4b0_get_vpc_for_route_table_tests()
             if vpc:
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
@@ -3153,7 +3153,7 @@ class VpcSuite(CliTestRunner):
         the CIDR blocks of the subnets cannot overlap.
         """
         user = self.user
-        vpc = self.test5b0_get_vpc_for_subnet_tests()
+        vpc = self.test_5b0_get_vpc_for_subnet_tests()
         self.status('Attempting to create a new subnet which is equal to the VPC CIDR block...')
         subnet = None
         self.status('Deleting any potentially conflicting subnets from this test vpc:{0}'
@@ -3181,7 +3181,7 @@ class VpcSuite(CliTestRunner):
         the CIDR blocks of the subnets cannot overlap.
         """
         user = self.user
-        vpc = self.test5b0_get_vpc_for_subnet_tests()
+        vpc = self.test_5b0_get_vpc_for_subnet_tests()
         self.status('Attempting to create a new subnets with duplicate cidr...')
         subnets =[]
         self.status('Deleting any potentially conflicting subnets from this test vpc:{0}'
@@ -3231,7 +3231,7 @@ class VpcSuite(CliTestRunner):
         the CIDR blocks of the subnets cannot overlap.
         """
         user = self.user
-        vpc = self.test5b0_get_vpc_for_subnet_tests()
+        vpc = self.test_5b0_get_vpc_for_subnet_tests()
         self.status('Attempting to create subnets with overlapping cidr...')
         subnets = []
         zone = self.zones[0]
@@ -3298,7 +3298,7 @@ class VpcSuite(CliTestRunner):
         the CIDR blocks of the subnets cannot overlap.
         """
         user = self.user
-        vpc = self.test5b0_get_vpc_for_subnet_tests()
+        vpc = self.test_5b0_get_vpc_for_subnet_tests()
         self.status('Attempting to create a new subnet which exceeds the max cidr range of /16...')
         subnet = None
         self.status('Deleting any potentially conflicting subnets from this test vpc:{0}'
@@ -3344,7 +3344,7 @@ class VpcSuite(CliTestRunner):
         the CIDR blocks of the subnets cannot overlap.
         """
         user = self.user
-        vpc = self.test5b0_get_vpc_for_subnet_tests()
+        vpc = self.test_5b0_get_vpc_for_subnet_tests()
         self.status('Attempting to create a new subnet which is smaller than the min '
                     'cidr range of /28...')
         subnet = None
@@ -3389,7 +3389,7 @@ class VpcSuite(CliTestRunner):
         cloud.vpc.subnetspervpc
         """
         user = self.user
-        vpc = vpc or self.test5b0_get_vpc_for_subnet_tests()
+        vpc = vpc or self.test_5b0_get_vpc_for_subnet_tests()
         prop = self.tc.sysadmin.get_property('cloud.vpc.subnetspervpc')
         prop.show()
         limit = int(prop.value)
@@ -3459,7 +3459,7 @@ class VpcSuite(CliTestRunner):
         """
         if not self.args.no_clean:
             user = self.user
-            vpc = self.test5b0_get_vpc_for_subnet_tests()
+            vpc = self.test_5b0_get_vpc_for_subnet_tests()
             if vpc:
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
@@ -3508,7 +3508,7 @@ class VpcSuite(CliTestRunner):
 
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         zones = self.zones
         subnets = []
         subnets = self.create_test_subnets(vpc=vpc, zones=zones, user=user, count_per_zone=1)
@@ -3585,7 +3585,7 @@ class VpcSuite(CliTestRunner):
         - Request a private ip already in use by another ENI
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         zones = self.zones
         subnets = []
         for zone in zones:
@@ -3760,7 +3760,7 @@ class VpcSuite(CliTestRunner):
         """
 
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
         group = self.get_test_security_groups(vpc=vpc, user=user, count=1)[0]
@@ -3816,7 +3816,7 @@ class VpcSuite(CliTestRunner):
 
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
         group = self.get_test_security_groups(vpc=vpc, user=user, count=1)[0]
@@ -3866,7 +3866,7 @@ class VpcSuite(CliTestRunner):
         subnet of the primary ENI to the instance under test.
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
         group = self.get_test_security_groups(vpc=vpc, count=1, rules=self.DEFAULT_SG_RULES,
@@ -3927,7 +3927,7 @@ class VpcSuite(CliTestRunner):
         emi = user.ec2.get_emi(root_device_type='ebs', not_platform='windows')
         if not emi:
             raise SkipTestException('Could not find an EBS backed image for this test?')
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         subnets = []
         group = self.get_test_security_groups(vpc=vpc, count=1, user=user)[0]
 
@@ -3985,7 +3985,7 @@ class VpcSuite(CliTestRunner):
         "AttachmentLimitExceeded"
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
         group = self.get_test_security_groups(vpc=vpc, count=1, user=user)[0]
@@ -4046,7 +4046,7 @@ class VpcSuite(CliTestRunner):
         ssh/ping.
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         subnets = []
         group = self.get_test_security_groups(vpc=vpc, count=1, user=user)[0]
         def check_tcp_status(vm, timeout=30):
@@ -4269,7 +4269,7 @@ class VpcSuite(CliTestRunner):
             raise RuntimeError(errmsg)
 
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
 
@@ -4387,7 +4387,7 @@ class VpcSuite(CliTestRunner):
         Swap the ENIs back and repeat verifications
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
         status = self.status
@@ -4641,7 +4641,7 @@ class VpcSuite(CliTestRunner):
          covered in other tests in this suite.
         """
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         instances = []
         subnets = []
         protocols = []
@@ -5058,7 +5058,7 @@ class VpcSuite(CliTestRunner):
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
-        vpc = self.test6b0_get_vpc_for_eni_tests()
+        vpc = self.test_6b0_get_vpc_for_eni_tests()
         status = self.status
         instances = []
         subnets = []
@@ -5132,7 +5132,7 @@ class VpcSuite(CliTestRunner):
         """
         if not self.args.no_clean:
             user = self.user
-            vpc = self.test6b0_get_vpc_for_eni_tests()
+            vpc = self.test_6b0_get_vpc_for_eni_tests()
             if vpc:
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
@@ -5174,7 +5174,7 @@ class VpcSuite(CliTestRunner):
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
-        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        vpc = self.test_8b0_get_vpc_for_nat_gw_tests()
         subnets = []
         eips = []
         gws = []
@@ -5257,7 +5257,7 @@ class VpcSuite(CliTestRunner):
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
-        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        vpc = self.test_8b0_get_vpc_for_nat_gw_tests()
         subnets = []
         eips = []
         gws = []
@@ -5333,7 +5333,7 @@ class VpcSuite(CliTestRunner):
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
-        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        vpc = self.test_8b0_get_vpc_for_nat_gw_tests()
         subnets = []
         eips = []
         gws = []
@@ -5407,7 +5407,7 @@ class VpcSuite(CliTestRunner):
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
-        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        vpc = self.test_8b0_get_vpc_for_nat_gw_tests()
         subnets = []
         eips = []
         gws = []
@@ -5642,7 +5642,7 @@ class VpcSuite(CliTestRunner):
         if clean is None:
             clean = not self.args.no_clean
         user = self.user
-        vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+        vpc = self.test_8b0_get_vpc_for_nat_gw_tests()
         subnets = []
         eips = []
         try:
@@ -5742,7 +5742,7 @@ class VpcSuite(CliTestRunner):
         """
         if not self.args.no_clean:
             user = self.user
-            vpc = self.test8b0_get_vpc_for_nat_gw_tests()
+            vpc = self.test_8b0_get_vpc_for_nat_gw_tests()
             if vpc:
                 user.ec2.delete_vpc_and_dependency_artifacts(vpc)
 
