@@ -44,6 +44,7 @@ from cloud_utils.net_utils import packet_test, is_address_in_network, test_port_
     get_network_info_for_cidr
 from cloud_utils.net_utils.sshconnection import CommandExitCodeException, SshConnection, \
     CommandTimeoutException
+from paramiko.ssh_exception import SSHException
 from cloud_utils.log_utils import markup, printinfo, get_traceback, TextStyle, ForegroundColor, \
     BackGroundColor, yellow, red, cyan, blue
 from boto.exception import BotoServerError, EC2ResponseError
@@ -1983,13 +1984,13 @@ class VpcSuite(CliTestRunner):
     ###############################################################################################
     def test_3b0_get_vpc_for_security_group_tests(self):
         test_vpc = self.user.ec2.get_all_vpcs(filters={'tag-key': self.SUBNET_TEST_TAG,
-                                                       'tag-value': self.test__id})
+                                                       'tag-value': self.test_id})
         if not test_vpc:
             test_vpc = self.create_test_vpcs()
             if not test_vpc:
                 raise RuntimeError('Failed to create test VPC for subnet tests?')
             test_vpc = test_vpc[0]
-            self.user.ec2.create_tags([test_vpc.id], {self.SECURITY_GROUP_TEST_TAG: self.test__id})
+            self.user.ec2.create_tags([test_vpc.id], {self.SECURITY_GROUP_TEST_TAG: self.test_id})
         else:
             test_vpc = test_vpc[0]
         return test_vpc
@@ -2197,13 +2198,13 @@ class VpcSuite(CliTestRunner):
         for later filtering.
         """
         test_vpc = self.user.ec2.get_all_vpcs(filters={'tag-key': self.ROUTE_TABLE_TEST_TAG,
-                                                       'tag-value': self.test__id})
+                                                       'tag-value': self.test_id})
         if not test_vpc:
             test_vpc = self.create_test_vpcs()
             if not test_vpc:
                 raise RuntimeError('Failed to create test VPC for route table tests?')
             test_vpc = test_vpc[0]
-            self.user.ec2.create_tags([test_vpc.id], {self.ROUTE_TABLE_TEST_TAG: self.test__id})
+            self.user.ec2.create_tags([test_vpc.id], {self.ROUTE_TABLE_TEST_TAG: self.test_id})
         else:
             test_vpc = test_vpc[0]
         return test_vpc
@@ -2219,7 +2220,7 @@ class VpcSuite(CliTestRunner):
         vpc = vpc or self.test_4b0_get_vpc_for_route_table_tests()
         subnets = self.user.ec2.get_all_subnets(filters={'vpc_id': vpc.id,
                                                          'tag-key': self.ROUTE_TABLE_TEST_TAG,
-                                                         'tag-value': self.test__id}) or []
+                                                         'tag-value': self.test_id}) or []
         zones = zones or self.zones
         if not zones:
             raise ValueError('Could not find any zones?')
@@ -2237,7 +2238,7 @@ class VpcSuite(CliTestRunner):
                     new_subnets = self.create_test_subnets(vpc=vpc, zones=zones_to_use,
                                                            count_per_zone=sub_count)
                     sub_ids = [str(x.id) for x in new_subnets]
-                    self.user.ec2.create_tags(sub_ids, {self.ROUTE_TABLE_TEST_TAG: self.test__id})
+                    self.user.ec2.create_tags(sub_ids, {self.ROUTE_TABLE_TEST_TAG: self.test_id})
                     subnets += new_subnets
                     self.log.debug('Created {0}/{1} new subnets, total subnets:{2}, requested{3}'
                                    .format(len(new_subnets), need, len(subnets), count))
@@ -4680,8 +4681,11 @@ class VpcSuite(CliTestRunner):
 
         primary_group = self.get_test_security_groups(vpc=vpc, count=1, rules=test_rules,
                                                       user=user)[0]
+        primary_group.add_tags({'vpc_test_primary_group': self.test_id})
         eni_group1 = self.get_test_security_groups(vpc=vpc, count=1, rules=test_rules, user=user)[0]
+        eni_group1.add_tags({'vpc_test_eni_group1': self.test_id})
         eni_group2 = self.get_test_security_groups(vpc=vpc, count=1, rules=test_rules, user=user)[0]
+        eni_group2.add_tags({'vpc_test_eni_group2': self.test_id})
 
         self.last_status_msg = ""
         test_errors = []
@@ -4821,6 +4825,8 @@ class VpcSuite(CliTestRunner):
                 try:
                     vm_rx.attach_eni(eni5_s2_g1)
                     vm_rx.sync_enis_static_ip_config()
+                    vm_rx.show_enis()
+                    vm_tx.show_enis()
                     ping_for_status(vm_tx, eni5_s2_g1)
                     results = run_tests(vm_tx, vm_rx, eni5_s2_g1.private_ip_address)
                     for protocol, res_dict in results.iteritems():
@@ -4842,6 +4848,8 @@ class VpcSuite(CliTestRunner):
                 try:
                     vm_rx.attach_eni(eni4_s2_g2)
                     vm_rx.sync_enis_static_ip_config()
+                    vm_rx.show_enis()
+                    vm_tx.show_enis()
                     ping_for_status(vm_tx, eni4_s2_g2)
                     results = run_tests(vm_tx, vm_rx, eni4_s2_g2.private_ip_address)
                     for protocol, res_dict in results.iteritems():
@@ -4867,6 +4875,10 @@ class VpcSuite(CliTestRunner):
                 user.ec2.authorize_group(primary_group, protocol='tcp', port=22)
                 user.ec2.revoke_all_rules(eni_group1)
                 user.ec2.revoke_all_rules(eni_group2)
+                user.ec2.show_security_group(eni_group1)
+                user.ec2.show_security_group(eni_group2)
+                user.ec2.show_security_group(primary_group)
+                vm_tx.show_enis()
                 status('Using ping to test for when rules are applied...')
                 start = time.time()
                 elapsed = 0

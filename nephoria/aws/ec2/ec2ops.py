@@ -7572,6 +7572,17 @@ disable_root: false"""
         if egress_rules:
             maintable.add_row(["EGRESS RULES:"])
             maintable.add_row([get_rules_table(egress_rules)])
+        tag_hdr = markup("{0}/{1} TAGS".format(group.name, group.id),
+                         [BackGroundColor.BG_BLUE, ForegroundColor.WHITE, TextStyle.BOLD])
+        tag_val_hdr = markup("TAG VALUES", [BackGroundColor.BG_BLUE, ForegroundColor.WHITE,
+                                            TextStyle.BOLD])
+        tag_pt = PrettyTable([tag_hdr, tag_val_hdr])
+        tag_pt.align[tag_hdr] = 'r'
+        tag_pt.align[tag_val_hdr] = 'l'
+        tag_pt.max_width[tag_hdr] = 30
+        tag_pt.max_width[tag_val_hdr] = 64
+        for tag, value in group.tags.iteritems():
+            tag_pt.add_row([tag, value])
         if printme:
             self.log.info("\n{0}".format(str(maintable)))
         else:
