@@ -1745,6 +1745,52 @@ class VpcSuite(CliTestRunner):
                 raise SkipTestException('Test already run for the test user')
         return self.check_user_default_igw(user=self.user)
 
+    def test2c2_test_user_limited_to_a_single_igw_per_vpc(self):
+        """
+        Definition:
+        Verify that a user is limited to a single IGW attachment per VPC.
+        - Create a new VPC and attach a single IGW to it
+        - Create a 2nd IGW and attempt to attach it to the same VPC. This should fail.
+        """
+        user = self.user
+        self.status('Attempting to create a new vpc and attach a single IGW to it...')
+        vpc = None
+        igw = None
+        try:
+            vpc = self.create_test_vpcs(count=1,
+                                        create_igw_per_vpc=True,
+                                        add_default_igw_route=True,
+                                        user=user
+                                        )[0]
+            igw = user.ec2.connection.create_internet_gateway()
+            try:
+                user.ec2.connection.attach_internet_gateway(igw.id, vpc.id)
+            except Exception as E:
+                if (isinstance(E, EC2ResponseError)
+                    and int(E.status) == 400
+                    and E.reason == 'InvalidParameterValue'
+                    and re.search('already has an internet gateway attached', E.message)):
+                    self.status(
+                        'Passed. System provided proper error when attempting to attach a 2nd IGW '
+                        'to a VPC. Err:{0}'.format(E))
+                else:
+                    self.log.error(
+                        'System responded with an error, but not the one this negative test '
+                        'expected. Got:{0}:{1}'.format(type(E), E))
+                    raise
+            else:
+                if vpc:
+                    user.ec2.show_vpc(vpc)
+                raise RuntimeError(
+                    'System either allowed the user to attach a 2nd IGW to this VPC'
+                    ' or did not respond with the proper error')
+        finally:
+            self.status('Attempting to delete vpc and artifacts after this test...')
+            if igw:
+                user.ec2.connection.delete_internet_gateway(igw.id)
+            if vpc:
+                user.ec2.delete_vpc_and_dependency_artifacts(vpc)
+
     def test_2d_test_user_default_subnets(self):
         """
         Definition:
