@@ -1174,7 +1174,7 @@ disable_root: false"""
             filters={'attachment.vpc-id': vpc})
         self.log.debug('Attempting to gather: vpn gateways')
         ret_dict['vpn_gateways'] = self.connection.get_all_vpn_gateways(
-            filters={'vpc_id': vpc})
+            filters={'attachment.vpc-id': vpc})
         self.log.debug('Attempting to gather: route tables')
         ret_dict['route_tables'] = self.connection.get_all_route_tables(
             filters={'vpc-id': vpc})
@@ -1863,7 +1863,87 @@ disable_root: false"""
         else:
             return ret_buf
 
-    def terminate_single_instance(self, instance, timeout=300 ):
+
+    def show_acls(self, acls=None, filters=None, update=True, indent="    ", printmethod=None,
+                  printme=True):
+        filters = filters or {}
+        indent = indent or ""
+        def header(text):
+            return markup(str(text), markups=[TextStyle.BOLD, TextStyle.UNDERLINE])
+        acls = acls or self.connection.get_all_network_acls(filters=filters)
+        if not isinstance(acls, list):
+            acls = [acls]
+        acl_list = []
+        for acl in acls:
+            if acl and isinstance(acl, basestring):
+                acl = self.connection.get_all_network_acls(network_acl_ids=[acl])
+                if not acl:
+                    self.log.warning('Network ACL:"{0}" not found to show'.format(acl))
+                else:
+                    acl_list.append(acl[0])
+            else:
+                if update:
+                    try:
+                        acl = self.connection.get_all_network_acls(network_acl_ids=[acl.id])[0]
+                    except Exception as E:
+                        self.log.warning('Could not fetch updated ACL:{0}, ERR:{1}'
+                                         .format(acl.id, E))
+                        setattr(acl, 'ERROR', True)
+                acl_list.append(acl)
+        buf = ""
+        for acl in acl_list:
+            main_pt = PrettyTable([markup('NETWORK ACL: {0}'.format(acl.id),
+                                          markups=[TextStyle.BOLD,
+                                                   ForegroundColor.BLUE,
+                                                   BackGroundColor.BG_WHITE])])
+            main_pt.align = 'l'
+            main_pt.add_row(["{0}: {1}".format(header('VPC'), acl.vpc_id)])
+            main_pt.add_row(["{0}: {1}".format(header('REGION'), acl.region)])
+            main_pt.add_row(["{0}: {1}".format(header('DEFAULT'), acl.default)])
+
+            main_pt.add_row([header('{0} ASSOCIATIONS:'.format(acl.id))])
+            ass_pt = PrettyTable([indent, 'ASSOC ID', 'ACL ID', 'SUBNET ID'])
+            ass_pt.align = 'l'
+            ass_pt.border = False
+            for ass in acl.associations:
+                ass_pt.add_row([indent, ass.id, ass.network_acl_id, ass.subnet_id])
+            main_pt.add_row([ass_pt])
+            main_pt.add_row([header('{0} ENTRIES:'.format(acl.id))])
+            e_pt = PrettyTable([indent, '#','CIDR', 'EGRESS', 'ICMP C/T', 'PORTS', 'PROTO',
+                                'ACTION'])
+            e_pt.align = 'l'
+            e_pt.border = False
+            portlen = 16
+            for entry in acl.network_acl_entries:
+                if entry.port_range.from_port == entry.port_range.to_port:
+                    ports = str(entry.port_range.from_port).ljust(portlen)
+                else:
+                    ports = str("{0}-{1}".format(entry.port_range.from_port,
+                                                 entry.port_range.to_port)).ljust(portlen)
+                e_pt.add_row([indent,
+                              str(entry.rule_number).ljust(4),
+                              str(entry.cidr_block).ljust(19),
+                              str(entry.egress).ljust(6),
+                              "{0}/{1}".format(entry.icmp.code, entry.icmp.type).ljust(6),
+                              ports,
+                              str(entry.protocol).ljust(4),
+                              str(entry.rule_action).ljust(7)])
+            main_pt.add_row([e_pt])
+            main_pt.add_row([header('{0} TAGS:'.format(acl.id))])
+            tpt = self.show_tags(acl.tags, printme=False)
+            tpt.border = False
+            tbuf = ""
+            for line in tpt.get_string():
+                tbuf += "{0}{1}\n".format(indent, line)
+            main_pt.add_row([tbuf])
+            buf += "\n{0}\n\n".format(main_pt)
+        if printme:
+            printmethod = printmethod or self.log.info
+            printmethod("\n{0}".format(buf))
+        else:
+            return buf
+
+    def terminate_single_instance(self, instance, timeout=300):
         """
         Terminate an instance
 
@@ -6942,6 +7022,9 @@ disable_root: false"""
         return self.get_vm_types()
 
     def get_vm_types(self):
+        if str(self.connection.region.endpoint).endswith('amazonaws.com'):
+            self.log.debug('AWS does support this request')
+            return None
         params = {}
         usercontext = getattr(self, '_user_context', None)
         if usercontext:
@@ -7572,17 +7655,26 @@ disable_root: false"""
         if egress_rules:
             maintable.add_row(["EGRESS RULES:"])
             maintable.add_row([get_rules_table(egress_rules)])
-        tag_hdr = markup("{0}/{1} TAGS".format(group.name, group.id),
+        tag_hdr = markup("TAGS FOR: {0}/{1}".format(group.name, group.id),
                          [BackGroundColor.BG_BLUE, ForegroundColor.WHITE, TextStyle.BOLD])
+        tag_key_hdr = markup("TAG KEY", [BackGroundColor.BG_BLUE, ForegroundColor.WHITE,
+                                            TextStyle.BOLD])
         tag_val_hdr = markup("TAG VALUES", [BackGroundColor.BG_BLUE, ForegroundColor.WHITE,
                                             TextStyle.BOLD])
-        tag_pt = PrettyTable([tag_hdr, tag_val_hdr])
+        tag_pt = PrettyTable([tag_key_hdr.center(30), tag_val_hdr.center(64)])
         tag_pt.align[tag_hdr] = 'r'
         tag_pt.align[tag_val_hdr] = 'l'
+        #tag_pt.vertical_char = " "
+        tag_pt.border = False
         tag_pt.max_width[tag_hdr] = 30
         tag_pt.max_width[tag_val_hdr] = 64
         for tag, value in group.tags.iteritems():
             tag_pt.add_row([tag, value])
+        maintable.add_row([tag_hdr])
+        buf = ""
+        for line in tag_pt.get_string().splitlines():
+            buf += "    {0}\n".format(line)
+        maintable.add_row([buf])
         if printme:
             self.log.info("\n{0}".format(str(maintable)))
         else:

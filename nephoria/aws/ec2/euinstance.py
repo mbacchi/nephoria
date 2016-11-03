@@ -2114,8 +2114,15 @@ class EuInstance(Instance, TaggedResource, Machine):
         return mount_dir
 
     def update_vm_type_info(self):
-        self.vmtype_info = self.ec2ops.get_vm_type_info(self.instance_type)
-        return self.vmtype_info
+        vmtype_info = getattr(self, 'vmtype_info', None)
+        try:
+            if not str(self.connection.region.endpoint).endswith('amazonaws.com'):
+                vmtype_info = self.ec2ops.get_vm_type_info(self.instance_type)
+        except Exception as E:
+            # Log this as debug as this is normal if run against AWS...
+            self.log.debug('{0}\nFailed to fetch vmtype info: {1}'.format(get_traceback(), E))
+        self.vmtype_info = vmtype_info
+        return vmtype_info
 
     def get_ephemeral_dev(self):
         """
@@ -2511,25 +2518,31 @@ class EuInstance(Instance, TaggedResource, Machine):
                     if i.id == eni.id:
                         break
                 if int(i.attachment.device_index) != indx:
-                    raise ValueError('Device index:"{0}" of eni in local instances does not match '
-                                     'requested:"{1}" value.'.format(i.id. indx))
+                    raise ValueError('Device index:"{0}" of eni:{1} in local instance:{2} '
+                                     'does not match requested:"{3}" value.'
+                                     .format(i.id, eni.id, self.id, indx))
                 if eni.status != eni_status:
-                    raise ValueError('ENI status "{0}" != "{1}"'.format(eni.status, eni_status))
+                    raise ValueError('ENI:{0} status "{1}" != "{2}"'
+                                     .format(eni.id, eni.status, eni_status))
                 if eni.attachment.id != i.attachment.id:
-                    raise ValueError('ENI attachment id: {0} != self.interfaces.attachment.id:{1}'
-                                     .format(eni.attachment.id, i.attachment.id))
+                    raise ValueError('ENI:{0} attachment id: {1} != '
+                                     '{2}.interfaces.attachment.id:{3}'
+                                     .format(eni.id, eni.attachment.id, self.id, i.attachment.id))
                 if not eni.attachment:
-                    raise ValueError('ENI attachment info is empty after updating ENI info post '
-                                     'attachment')
+                    raise ValueError('ENI:{0} attachment info is empty after updating ENI info '
+                                     'post attachment'.format(eni.id))
                 if eni.attachment.instance_id != self.id:
-                    raise ValueError('ENI attachment data instance_id:"{0}" does not show proper '
-                                     'instance id:{1}'.format(eni.attachment.instance_id, self.id))
+                    raise ValueError('ENI:{0} attachment data instance_id:"{1}" does not show '
+                                     'proper instance id:{2}'.format(eni.id,
+                                                                     eni.attachment.instance_id,
+                                                                     self.id))
                 if int(eni.attachment.device_index) != indx:
-                    raise ValueError('ENI attachment device index:"{0}" does match requested '
-                                    'index:"{1}"'.format(eni.attachment.device_index, indx))
+                    raise ValueError('ENI:{0} attachment device index:"{1}" does match requested '
+                                    'index:"{2}"'.format(eni.id, eni.attachment.device_index,
+                                                         indx))
                 if eni.attachment.status != attachment_status:
-                    raise ValueError('ENI attachment.status: "{0}" != "{1}"'
-                                     .format(eni.attachment.status, attachment_status))
+                    raise ValueError('ENI:{0} attachment.status: "{1}" != "{2}"'
+                                     .format(eni.id, eni.attachment.status, attachment_status))
                 api_is_good = True
                 break
             except ValueError as VE:

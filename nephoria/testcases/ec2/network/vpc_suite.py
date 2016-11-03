@@ -595,9 +595,10 @@ class VpcSuite(CliTestRunner):
                 name = "{0}_{1}_{2}".format(self.test_name,
                                             len(self._security_groups[vpc]) + 1,
                                             self.test_id)
-                self._security_groups[vpc].append(
-                    user.ec2.connection.create_security_group(name=name, description=name,
-                                                              vpc_id=vpc))
+                group = user.ec2.connection.create_security_group(name=name, description=name,
+                                                                  vpc_id=vpc)
+                group.add_tags({self.__class__.__name__: self.test_id})
+                self._security_groups[vpc].append(group)
             sec_groups = self._security_groups[vpc]
         for group in sec_groups:
             user.ec2.revoke_all_rules(group)
@@ -4679,12 +4680,15 @@ class VpcSuite(CliTestRunner):
             return res_dict
 
 
-        primary_group = self.get_test_security_groups(vpc=vpc, count=1, rules=test_rules,
-                                                      user=user)[0]
+        primary_group, eni_group1, eni_group2 = self.get_test_security_groups(
+            vpc=vpc, count=3, rules=test_rules, user=user)
+
+        for group in [primary_group, eni_group1, eni_group2]:
+            for key, value in group.tags.iteritems():
+                if key != self.__class__.__name__ and value != self.test_id:
+                    group.remove_tag(key=key, value=value)
         primary_group.add_tags({'vpc_test_primary_group': self.test_id})
-        eni_group1 = self.get_test_security_groups(vpc=vpc, count=1, rules=test_rules, user=user)[0]
         eni_group1.add_tags({'vpc_test_eni_group1': self.test_id})
-        eni_group2 = self.get_test_security_groups(vpc=vpc, count=1, rules=test_rules, user=user)[0]
         eni_group2.add_tags({'vpc_test_eni_group2': self.test_id})
 
         self.last_status_msg = ""
@@ -4720,9 +4724,10 @@ class VpcSuite(CliTestRunner):
             self.modify_vm_type_store_orig('m1.small', network_interfaces=3)
             for zone in self.zones:
                 status('Creating test subnets...')
-                primary_subnet, subnet1, subnet2 = self.get_non_default_test_subnets_for_vpc(
-                    vpc=vpc, user=user, zone=zone, count=3)
-                subnets += [primary_subnet, subnet1, subnet2]
+                tx_primary, rx_primary, subnet1, subnet2 = \
+                    self.get_non_default_test_subnets_for_vpc(vpc=vpc, user=user,
+                                                              zone=zone, count=4)
+                subnets += [tx_primary, rx_primary, subnet1, subnet2]
                 status('Creating test ENIs')
                 eni1_s1_g1, eni2_s1_g1 = self.get_test_enis_for_subnet(subnet=subnet1,
                                                            apply_groups=eni_group1.id,
@@ -4738,13 +4743,21 @@ class VpcSuite(CliTestRunner):
                                                            apply_groups=eni_group1.id,
                                                            user=user, count=1,
                                                            exclude=[eni4_s2_g2])[0]
-                status('Creating VMs for this test...')
-                vm_tx, vm_rx  = self.get_test_instances(zone=zone, group_id=primary_group.id,
-                                                        vpc_id=vpc.id, subnet_id=primary_subnet.id,
-                                                        instance_type='m1.small',
-                                                        auto_connect=True, count=2)
-                instances = [vm_tx, vm_rx]
 
+                status('Creating VMs for this test...')
+                vm1 = self.get_test_instances(zone=zone, group_id=primary_group.id,
+                                                vpc_id=vpc.id, subnet_id=tx_primary.id,
+                                                instance_type='m1.small', monitor_to_running=False,
+                                                auto_connect=True, count=1)[0]
+                instances = [vm1]
+                vm2 = self.get_test_instances(zone=zone, group_id=primary_group.id,
+                                                vpc_id=vpc.id, subnet_id=rx_primary.id,
+                                                instance_type='m1.small', monitor_to_running=False,
+                                                auto_connect=True, count=1)[0]
+                instances.append(vm2)
+                vm_rx, vm_tx = user.ec2.monitor_euinstances_to_running(instances=[vm1, vm2])
+                instances = [vm_tx, vm_rx]
+                result_pt = PrettyTable(['TEST CASE', 'PASS/FAIL'])
                 status('Test scenario Primary ENIs same group same subnet private IP')
                 try:
                     results = run_tests(vm_tx, vm_rx, vm_rx.private_ip_address)
@@ -4753,7 +4766,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                     protocol,
                                                                     res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4769,7 +4784,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4781,6 +4798,7 @@ class VpcSuite(CliTestRunner):
                 try:
                     vm_tx.attach_eni(eni1_s1_g1)
                     vm_tx.sync_enis_static_ip_config()
+                    vm_rx.detach_all_enis()
                     vm_rx.attach_eni(eni2_s1_g1)
                     vm_rx.sync_enis_static_ip_config()
                     ping_for_status(vm_tx, eni2_s1_g1)
@@ -4790,7 +4808,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4798,10 +4818,12 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni2_s1_g1, ignore_missing=True)
+                    if (not stop_on_fail and not clean):
+                        vm_rx.detach_eni(eni2_s1_g1, ignore_missing=True)
 
                 status('Test scenario Secondary ENI different group same subnet private IP')
                 try:
+                    vm_rx.detach_all_enis()
                     vm_rx.attach_eni(eni3_s1_g2)
                     vm_rx.sync_enis_static_ip_config()
                     ping_for_status(vm_tx, eni3_s1_g2)
@@ -4811,7 +4833,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4819,22 +4843,31 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni3_s1_g2, ignore_missing=True)
+                    if (not stop_on_fail and not clean):
+                        vm_rx.detach_eni(eni3_s1_g2, ignore_missing=True)
 
                 status('Test scenario Secondary ENIs same group different subnet private IP')
                 try:
-                    vm_rx.attach_eni(eni5_s2_g1)
+                    vm_rx.detach_all_enis()
+                    vm_tx.detach_all_enis()
+                    vm_rx.attach_eni(eni3_s1_g2)
                     vm_rx.sync_enis_static_ip_config()
+
+                    vm_tx.attach_eni(eni4_s2_g2)
+                    vm_tx.sync_enis_static_ip_config()
                     vm_rx.show_enis()
                     vm_tx.show_enis()
-                    ping_for_status(vm_tx, eni5_s2_g1)
-                    results = run_tests(vm_tx, vm_rx, eni5_s2_g1.private_ip_address)
+
+                    ping_for_status(vm_tx, eni3_s1_g2)
+                    results = run_tests(vm_tx, vm_rx, eni3_s1_g2.private_ip_address)
                     for protocol, res_dict in results.iteritems():
                         if not res_dict.get('passed'):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4842,22 +4875,30 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni5_s2_g1, ignore_missing=True)
+                    if (not stop_on_fail and not clean):
+                        vm_rx.detach_eni(eni5_s2_g1, ignore_missing=True)
 
                 status('Test scenario Secondary ENIs different group different subnet private IP')
                 try:
-                    vm_rx.attach_eni(eni4_s2_g2)
+                    vm_rx.detach_all_enis()
+                    vm_tx.detach_all_enis()
+                    vm_rx.attach_eni(eni3_s1_g2)
                     vm_rx.sync_enis_static_ip_config()
+
+                    vm_tx.attach_eni(eni5_s2_g1)
+                    vm_tx.sync_enis_static_ip_config()
                     vm_rx.show_enis()
                     vm_tx.show_enis()
-                    ping_for_status(vm_tx, eni4_s2_g2)
+                    ping_for_status(vm_tx, eni3_s1_g2)
                     results = run_tests(vm_tx, vm_rx, eni4_s2_g2.private_ip_address)
                     for protocol, res_dict in results.iteritems():
                         if not res_dict.get('passed'):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4865,7 +4906,8 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni4_s2_g2, ignore_missing=True)
+                    if (not stop_on_fail and not clean):
+                        vm_rx.detach_eni(eni4_s2_g2, ignore_missing=True)
 
                 status('Beginning negative, revoke tests...')
                 status('Revoking all security group rules from sec groups, leaving ssh on the'
@@ -4906,7 +4948,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4922,7 +4966,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4940,7 +4986,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4948,7 +4996,8 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni2_s1_g1, ignore_missing=True)
+                    if not stop_on_fail and not clean:
+                        vm_rx.detach_eni(eni2_s1_g1, ignore_missing=True)
 
                 status('NEGATIVE Test scenario Secondary ENI different group same subnet private '
                        'IP')
@@ -4961,7 +5010,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4969,7 +5020,8 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni3_s1_g2, ignore_missing=True)
+                    if not stop_on_fail and not clean:
+                        vm_rx.detach_eni(eni3_s1_g2, ignore_missing=True)
 
                 status('NEGATIVE Test scenario Secondary ENIs same group different subnet private '
                        'IP')
@@ -4982,7 +5034,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -4990,7 +5044,8 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni5_s2_g1, ignore_missing=True)
+                    if not stop_on_fail and not clean:
+                        vm_rx.detach_eni(eni5_s2_g1, ignore_missing=True)
 
                 status('NEGATIVE Test scenario Secondary ENIs different group different subnet '
                        'private IP')
@@ -5003,7 +5058,9 @@ class VpcSuite(CliTestRunner):
                             test_errors.append("{0}, {1}:{2}".format(self.last_status_msg,
                                                                      protocol,
                                                                      res_dict.get('passed')))
+                    result_pt.add_row([self.last_status_msg, 'PASS'])
                 except Exception as E:
+                    result_pt.add_row([self.last_status_msg, 'FAIL'])
                     err = "{0}\nERROR during:'{1}', Error:{2}".format(get_traceback(),
                                                                       self.last_status_msg, E)
                     self.log.error(red(err))
@@ -5011,7 +5068,8 @@ class VpcSuite(CliTestRunner):
                     if stop_on_fail:
                         raise E
                 finally:
-                    vm_rx.detach_eni(eni4_s2_g2, ignore_missing=True)
+                    if not stop_on_fail and not clean:
+                        vm_rx.detach_eni(eni4_s2_g2, ignore_missing=True)
 
 
         except Exception as SE:
@@ -5021,6 +5079,7 @@ class VpcSuite(CliTestRunner):
             if verbose:
                 for table in tables:
                     self.log.info("\n{0}\n".format(table))
+                self.log.info("\n{0}\n".format(result_pt))
             if clean:
                 self.status('Beginning test cleanup. Last Status msg:"{0}"...'
                             .format(self.last_status_msg))
@@ -5802,6 +5861,20 @@ class VpcSuite(CliTestRunner):
                         user.ec2.delete_keypair(key)
                 except Exception as E:
                     errors.append('ERROR #{0}:\n{1}\n{2}'.format(len(errors), get_traceback(), E))
+
+                try:
+                    groups = user.ec2.connection.get_all_security_groups(
+                        filters={'tag-key': self.__class__.__name__, 'tag-value': self.test_id})
+                    for group in groups:
+                        try:
+                            group.delete()
+                        except Exception as E:
+                            self.log.error(red('{0}\n{1}'.format(get_traceback(), E)))
+                            errors.append(
+                                'ERROR #{0}:\n{1}\n{2}'.format(len(errors), get_traceback(), E))
+                except Exception as E:
+                    self.log.error(red('{0}\n{1}'.format(get_traceback(), E)))
+                    errors.append('ERROR #{0}:\n{1}\n{2}'.format(len(errors), get_traceback(), E))
             try:
                 if self.new_ephemeral_user and self.new_ephemeral_user != self.user:
                     self.log.debug('deleting new user account:"{0}"'
@@ -5809,6 +5882,7 @@ class VpcSuite(CliTestRunner):
                     self.tc.admin.iam.delete_account(
                         account_name=self.new_ephemeral_user.account_name, recursive=True)
             except Exception as E:
+                self.log.error(red('{0}\n{1}'.format(get_traceback(), E)))
                 errors.append('ERROR #{0}:\n{1}\n{2}'.format(len(errors), get_traceback(), E))
         if errors:
             raise RuntimeError('Errors during test clean up:\n{0}'.format("\n".join(errors)))
