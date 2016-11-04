@@ -1914,6 +1914,10 @@ disable_root: false"""
             e_pt.align = 'l'
             e_pt.border = False
             portlen = 16
+            def keysort(entry):
+                return entry.rule_number
+            
+            acl.network_acl_entries.sort(key=keysort)
             for entry in acl.network_acl_entries:
                 if entry.port_range.from_port == entry.port_range.to_port:
                     ports = str(entry.port_range.from_port).ljust(portlen)
