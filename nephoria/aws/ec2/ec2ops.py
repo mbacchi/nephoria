@@ -1926,7 +1926,7 @@ disable_root: false"""
 
                 portlen = 16
                 def keysort(entry):
-                    return entry.rule_number
+                    return int(entry.rule_number)
 
                 acl.network_acl_entries.sort(key=keysort)
                 for entry in acl.network_acl_entries:
@@ -1945,13 +1945,13 @@ disable_root: false"""
                                   str(entry.rule_action).ljust(7)])
             main_pt.add_row([e_pt])
             main_pt.add_row([header('{0} TAGS:'.format(acl.id))])
-            tbuf= ""
+            tag_pt = ""
             if acl.tags:
-                tpt = self.show_tags(acl.tags, printme=False)
-                tpt.border = False
-                for line in tpt.get_string():
-                    tbuf += "{0}{1}\n".format(indent, line)
-            main_pt.add_row([tbuf])
+                tag_pt = PrettyTable([indent, 'TAG_NAME', 'TAG_VALUE'])
+                format_pt(tag_pt)
+                for key, value in acl.tags.iteritems():
+                    tag_pt.add_row([indent, key, value])
+            main_pt.add_row([tag_pt])
             buf += "\n{0}\n\n".format(main_pt)
         if printme:
             printmethod = printmethod or self.log.info
