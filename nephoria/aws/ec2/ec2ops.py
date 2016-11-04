@@ -1870,6 +1870,12 @@ disable_root: false"""
         indent = indent or ""
         def header(text):
             return markup(str(text), markups=[TextStyle.BOLD, TextStyle.UNDERLINE])
+        def format_pt(pt):
+            pt.hrules = 0
+            pt.vrules = 0
+            pt.vertical_char = " "
+            pt.horizontal_char = "."
+            pt.align = 'l'
         acls = acls or self.connection.get_all_network_acls(filters=filters)
         if not isinstance(acls, list):
             acls = [acls]
@@ -1902,43 +1908,49 @@ disable_root: false"""
             main_pt.add_row(["{0}: {1}".format(header('DEFAULT'), acl.default)])
 
             main_pt.add_row([header('{0} ASSOCIATIONS:'.format(acl.id))])
-            ass_pt = PrettyTable([indent, 'ASSOC ID', 'ACL ID', 'SUBNET ID'])
-            ass_pt.align = 'l'
-            ass_pt.border = False
-            for ass in acl.associations:
-                ass_pt.add_row([indent, ass.id, ass.network_acl_id, ass.subnet_id])
+            ass_pt = ""
+            if acl.associations:
+                ass_pt = PrettyTable([indent, 'ASSOC ID', 'ACL ID', 'SUBNET ID'])
+                format_pt(ass_pt    )
+                #ass_pt.border = False
+                for ass in acl.associations:
+                    ass_pt.add_row([indent, ass.id, ass.network_acl_id, ass.subnet_id])
             main_pt.add_row([ass_pt])
             main_pt.add_row([header('{0} ENTRIES:'.format(acl.id))])
-            e_pt = PrettyTable([indent, '#','CIDR', 'EGRESS', 'ICMP C/T', 'PORTS', 'PROTO',
-                                'ACTION'])
-            e_pt.align = 'l'
-            e_pt.border = False
-            portlen = 16
-            def keysort(entry):
-                return entry.rule_number
-            
-            acl.network_acl_entries.sort(key=keysort)
-            for entry in acl.network_acl_entries:
-                if entry.port_range.from_port == entry.port_range.to_port:
-                    ports = str(entry.port_range.from_port).ljust(portlen)
-                else:
-                    ports = str("{0}-{1}".format(entry.port_range.from_port,
-                                                 entry.port_range.to_port)).ljust(portlen)
-                e_pt.add_row([indent,
-                              str(entry.rule_number).ljust(4),
-                              str(entry.cidr_block).ljust(19),
-                              str(entry.egress).ljust(6),
-                              "{0}/{1}".format(entry.icmp.code, entry.icmp.type).ljust(6),
-                              ports,
-                              str(entry.protocol).ljust(4),
-                              str(entry.rule_action).ljust(7)])
+            e_pt = ""
+            if acl.network_acl_entries:
+                e_pt = PrettyTable([indent, '#','CIDR', 'EGRESS', 'ICMP C/T', 'PORTS', 'PROTO',
+                                    'ACTION'])
+                format_pt(e_pt)
+                #e_pt.border = False
+
+                portlen = 16
+                def keysort(entry):
+                    return entry.rule_number
+
+                acl.network_acl_entries.sort(key=keysort)
+                for entry in acl.network_acl_entries:
+                    if entry.port_range.from_port == entry.port_range.to_port:
+                        ports = str(entry.port_range.from_port).ljust(portlen)
+                    else:
+                        ports = str("{0}-{1}".format(entry.port_range.from_port,
+                                                     entry.port_range.to_port)).ljust(portlen)
+                    e_pt.add_row([indent,
+                                  str(entry.rule_number).ljust(4),
+                                  str(entry.cidr_block).ljust(19),
+                                  str(entry.egress).ljust(6),
+                                  "{0}/{1}".format(entry.icmp.code, entry.icmp.type).ljust(6),
+                                  ports,
+                                  str(entry.protocol).ljust(4),
+                                  str(entry.rule_action).ljust(7)])
             main_pt.add_row([e_pt])
             main_pt.add_row([header('{0} TAGS:'.format(acl.id))])
-            tpt = self.show_tags(acl.tags, printme=False)
-            tpt.border = False
-            tbuf = ""
-            for line in tpt.get_string():
-                tbuf += "{0}{1}\n".format(indent, line)
+            tbuf= ""
+            if acl.tags:
+                tpt = self.show_tags(acl.tags, printme=False)
+                tpt.border = False
+                for line in tpt.get_string():
+                    tbuf += "{0}{1}\n".format(indent, line)
             main_pt.add_row([tbuf])
             buf += "\n{0}\n\n".format(main_pt)
         if printme:
