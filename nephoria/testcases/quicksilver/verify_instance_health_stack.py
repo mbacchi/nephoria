@@ -37,7 +37,7 @@ In [4]: test.test1()
 """
 
 
-class RunInstances(AWSCliTestRunner):
+class VerifyInstanceHealthStack(AWSCliTestRunner):
 
     #####################################################################################
     # Example of how to edit, add, remove the pre-baked cli arguments provided in the base
@@ -253,7 +253,7 @@ class RunInstances(AWSCliTestRunner):
 
 if __name__ == "__main__":
 
-    test = RunInstances()
+    test = VerifyInstanceHealthStack()
     result = test.run()
     exit(result)
 
